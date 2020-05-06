@@ -1,0 +1,12 @@
+.cache/
+.idea/
+obgraph.egg-info/
+obgraph/__pycache__/
+*.npy
+*.npz
+*.fa
+*.fa.fai
+*.fasta
+*.vcf.gz
+*.vcf
+
