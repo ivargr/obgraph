@@ -78,6 +78,24 @@ class Graph:
                    data["node_to_ref_offset"],
                    data["ref_offset_to_node"])
 
+
+    def get_flat_graph(self):
+        node_ids = np.where(self.nodes > 0)[0]
+        node_sizes = self.nodes[node_ids]
+        node_sequences = []
+        for node in node_ids:
+            node_sequences.append(list(self.get_node_sequence(node)))
+
+        linear_ref_nodes = list(self.linear_ref_nodes())
+        from_nodes = []
+        to_nodes = []
+        for from_node in node_ids:
+            for to_node in self.get_edges(from_node):
+                from_nodes.append(from_node)
+                to_nodes.append(to_node)
+
+        return node_ids, node_sequences, node_sizes, np.array(from_nodes), np.array(to_nodes), linear_ref_nodes
+
     @classmethod
     def from_flat_nodes_and_edges(cls, node_ids, node_sequences, node_sizes, from_nodes, to_nodes, linear_ref_nodes):
         max_node = np.max(node_ids)
