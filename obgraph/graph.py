@@ -4,7 +4,8 @@ import re
 import numpy as np
 
 class Graph:
-    def __init__(self, nodes, node_to_sequence_index, node_sequences, node_to_edge_index, node_to_n_edges, edges, node_to_ref_offset, ref_offset_to_node):
+    def __init__(self, nodes, node_to_sequence_index, node_sequences, node_to_edge_index, node_to_n_edges, edges,
+                 node_to_ref_offset, ref_offset_to_node, chromosome_start_nodes):
         self.nodes = nodes
         self.node_to_sequence_index = node_to_sequence_index
         self.node_sequences = node_sequences
@@ -14,6 +15,7 @@ class Graph:
         self.node_to_ref_offset = node_to_ref_offset
         self.ref_offset_to_node = ref_offset_to_node
         self._linear_ref_nodes_cache = None
+        self.chromosome_start_nodes = chromosome_start_nodes
 
     def get_node_size(self, node):
         return self.nodes[node]
@@ -21,6 +23,23 @@ class Graph:
     def get_node_sequence(self, node):
         index_position = self.node_to_sequence_index[node]
         return ''.join(self.node_sequences[index_position:index_position+self.nodes[node]])
+
+    def get_node_offset_at_chromosome_and_chromosome_offset(self, chromosome, offset):
+        chromosome_position = chromosome - 1
+        chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+        chromosome_offset = self.get_ref_offset_at_node(chromosome_start_node)
+        real_offset = int(chromosome_offset + offset)
+        node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, offset)
+        node_offset = self.get_ref_offset_at_node(node)
+        return real_offset - node_offset
+
+    def get_node_at_chromosome_and_chromosome_offset(self, chromosome, offset):
+        chromosome_position = chromosome - 1
+        chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+        # Shift offset with chromosome start offset
+        chromosome_offset = self.get_ref_offset_at_node(chromosome_start_node)
+        real_offset = int(chromosome_offset + offset)
+        return self.get_node_at_ref_offset(real_offset)
 
     def get_edges(self, node):
         index = self.node_to_edge_index[node]
@@ -62,7 +81,9 @@ class Graph:
                  node_to_n_edges=self.node_to_n_edges,
                  edges=self.edges,
                  node_to_ref_offset=self.node_to_ref_offset,
-                 ref_offset_to_node=self.ref_offset_to_node)
+                 ref_offset_to_node=self.ref_offset_to_node,
+                 chromosome_start_nodes=self.chromosome_start_nodes
+                 )
 
         logging.info("Saved to file %s" % file_name)
 
@@ -76,7 +97,8 @@ class Graph:
                    data["node_to_n_edges"],
                    data["edges"],
                    data["node_to_ref_offset"],
-                   data["ref_offset_to_node"])
+                   data["ref_offset_to_node"],
+                   data["chromosome_start_nodes"])
 
 
     def get_flat_graph(self):
@@ -97,7 +119,7 @@ class Graph:
         return node_ids, node_sequences, node_sizes, np.array(from_nodes), np.array(to_nodes), linear_ref_nodes
 
     @classmethod
-    def from_flat_nodes_and_edges(cls, node_ids, node_sequences, node_sizes, from_nodes, to_nodes, linear_ref_nodes):
+    def from_flat_nodes_and_edges(cls, node_ids, node_sequences, node_sizes, from_nodes, to_nodes, linear_ref_nodes, chromosome_start_nodes):
         max_node = np.max(node_ids)
         nodes = np.zeros(max_node+1, dtype=np.uint8)
         nodes[node_ids] = node_sizes
@@ -133,8 +155,8 @@ class Graph:
         logging.info("Finding ref offsets")
         node_to_ref_offset = np.zeros(max_node+1, np.uint64)
         ref_node_sizes = nodes[linear_ref_nodes]
-        ref_offsets = np.cumsum(ref_node_sizes) - ref_node_sizes[0]
-        node_to_ref_offset[linear_ref_nodes] = ref_offsets
+        ref_offsets = np.cumsum(ref_node_sizes)
+        node_to_ref_offset[linear_ref_nodes[1:]] = ref_offsets[:-1]
 
         ref_offset_to_node = np.zeros(int(np.max(node_to_ref_offset)) + 32)
         index_positions = np.cumsum(ref_node_sizes)[:-1]
@@ -143,7 +165,7 @@ class Graph:
         ref_offset_to_node = np.cumsum(ref_offset_to_node, dtype=np.uint32)
 
         return cls(nodes, node_sequence_index, node_sequences_array, node_to_edge_index,
-                   node_to_n_edges, to_nodes, node_to_ref_offset, ref_offset_to_node)
+                   node_to_n_edges, to_nodes, node_to_ref_offset, ref_offset_to_node, chromosome_start_nodes)
 
     @classmethod
     def from_vg_json_files(cls, file_names):
@@ -154,9 +176,13 @@ class Graph:
         edges_from = []
         edges_to = []
         linear_ref_nodes = []
+        chromosomes = []
+        chromosome_start_nodes = []
         n_nodes_added = 0
         n_edges_added = 0
+        chromosome_offset = 0
         for file_name in file_names:
+            # Hackish (send in chromosome on comand line later):
             path_found = False
             file = open(file_name)
             for line in file:
@@ -189,6 +215,7 @@ class Graph:
                         logging.info("Found path %s, assuming this is the reference path" % path["name"])
                         nodes_in_path = [mapping["position"]["node_id"] for mapping in path["mapping"]]
                         linear_ref_nodes.extend(nodes_in_path)
+                        chromosome_start_nodes.append(nodes_in_path[0])
                         path_found = True
 
 
@@ -197,8 +224,9 @@ class Graph:
         edges_from = np.array(edges_from)
         edges_to = np.array(edges_to)
         linear_ref_nodes = np.array(linear_ref_nodes, dtype=np.uint32)
+        chromosome_start_nodes = np.array(chromosome_start_nodes, dtype=np.uint32)
 
-        return cls.from_flat_nodes_and_edges(node_ids, node_sequences, node_sizes, edges_from, edges_to, linear_ref_nodes)
+        return cls.from_flat_nodes_and_edges(node_ids, node_sequences, node_sizes, edges_from, edges_to, linear_ref_nodes, chromosome_start_nodes)
 
 
 
