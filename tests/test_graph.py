@@ -7,7 +7,7 @@ def test_from_dicts():
         {1: [2, 3],
          2: [4],
          3: [4]},
-        [1, 2, 3]
+        [1, 2, 4]
     )
 
     assert g.get_node_size(1) == 4

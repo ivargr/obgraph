@@ -3,12 +3,17 @@ logging.basicConfig(level=logging.INFO, format='%(module)s %(asctime)s %(levelna
 import sys
 import argparse
 from . import Graph
+from .util import add_indel_dummy_nodes
 
 def make(args):
     logging.info("Will create from files %s" % args.vg_json_files)
     graph = Graph.from_vg_json_files(args.vg_json_files)
     graph.to_file(args.out_file_name)
 
+def add_indel_nodes(args):
+    graph = Graph.from_file(args.graph_file_name)
+    new_graph = add_indel_dummy_nodes(graph)
+    new_graph.to_file(args.out_file_name)
 
 def main():
     run_argument_parser(sys.argv[1:])
@@ -26,6 +31,11 @@ def run_argument_parser(args):
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.add_argument("-j", "--vg-json-files", nargs='+', required=True)
     subparser.set_defaults(func=make)
+
+    subparser = subparsers.add_parser("add_indel_nodes")
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.add_argument("-g", "--graph-file-name", required=True)
+    subparser.set_defaults(func=add_indel_nodes)
 
 
     if len(args) == 0:
