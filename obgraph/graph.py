@@ -2,10 +2,11 @@ import json
 import logging
 import re
 import numpy as np
+from alignment_free_graph_genotyper.variants import GenotypeCalls
 
 class Graph:
     def __init__(self, nodes, node_to_sequence_index, node_sequences, node_to_edge_index, node_to_n_edges, edges,
-                 node_to_ref_offset, ref_offset_to_node, chromosome_start_nodes):
+                 node_to_ref_offset, ref_offset_to_node, chromosome_start_nodes, allele_frequencies=None):
         self.nodes = nodes
         self.node_to_sequence_index = node_to_sequence_index
         self.node_sequences = node_sequences
@@ -16,9 +17,13 @@ class Graph:
         self.ref_offset_to_node = ref_offset_to_node
         self._linear_ref_nodes_cache = None
         self.chromosome_start_nodes = chromosome_start_nodes
+        self.allele_frequencies = allele_frequencies
 
     def get_node_size(self, node):
         return self.nodes[node]
+
+    def get_node_allele_frequency(self, node):
+        return self.allele_frequencies[node]
 
     def get_node_sequence(self, node):
         index_position = self.node_to_sequence_index[node]
@@ -79,6 +84,9 @@ class Graph:
         return ref_offset - offset_at_node
 
     def to_file(self, file_name):
+        allele_frequencies = self.allele_frequencies
+        if allele_frequencies is None:
+            allele_frequencies = np.zeros(0)
         np.savez(file_name,
                  nodes=self.nodes,
                  node_to_sequence_index=self.node_to_sequence_index,
@@ -88,7 +96,8 @@ class Graph:
                  edges=self.edges,
                  node_to_ref_offset=self.node_to_ref_offset,
                  ref_offset_to_node=self.ref_offset_to_node,
-                 chromosome_start_nodes=self.chromosome_start_nodes
+                 chromosome_start_nodes=self.chromosome_start_nodes,
+                 allele_frequencies=allele_frequencies
                  )
 
         logging.info("Saved to file %s" % file_name)
@@ -97,6 +106,10 @@ class Graph:
     def from_file(cls, file_name):
         logging.info("Reading file from %s" % file_name)
         data = np.load(file_name)
+        allele_frequencies = None
+        if "allele_frequencies" in data:
+            allele_frequencies = data["allele_frequencies"]
+
         return cls(data["nodes"],
                    data["node_to_sequence_index"],
                    data["node_sequences"],
@@ -105,7 +118,8 @@ class Graph:
                    data["edges"],
                    data["node_to_ref_offset"],
                    data["ref_offset_to_node"],
-                   data["chromosome_start_nodes"])
+                   data["chromosome_start_nodes"],
+                   allele_frequencies)
 
 
     def get_flat_graph(self):
@@ -368,4 +382,24 @@ class Graph:
             return self.get_insertion_nodes(variant, chromosome)
 
         raise Exception("Invalid variant %s. Has no type set." % variant)
+
+    def set_allele_frequencies_from_vcf(self, vcf_file_name, chromosome=1):
+        assert chromosome == 1, "Not implemented for other chromosomes than 1"
+        variants = GenotypeCalls.from_vcf(vcf_file_name)
+
+        frequencies = np.zeros(len(self.nodes), dtype=np.float16) + 1  # Set all to 1.0 initially
+
+        for i, variant in enumerate(variants):
+            if i % 1000 == 0:
+                logging.info("%d variants processed" % i)
+            reference_node, variant_node = self.get_variant_nodes(variant)
+            reference_af = variant.get_reference_allele_frequency()
+            variant_af = variant.get_variant_allele_frequency()
+            frequencies[reference_node] = reference_af
+            frequencies[variant_node] = variant_af
+
+        self.allele_frequencies = frequencies
+
+
+
 

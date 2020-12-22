@@ -15,8 +15,16 @@ def add_indel_nodes(args):
     new_graph = add_indel_dummy_nodes(graph)
     new_graph.to_file(args.out_file_name)
 
+def add_allele_frequencies(args):
+    graph = Graph.from_file(args.graph_file_name)
+    graph.set_allele_frequencies_from_vcf(args.vcf_file_name)
+    graph.to_file(args.graph_file_name)
+    logging.info("Wrote modified graph to the same file %s" % args.graph_file_name)
+
+
 def main():
     run_argument_parser(sys.argv[1:])
+
 
 
 def run_argument_parser(args):
@@ -37,6 +45,10 @@ def run_argument_parser(args):
     subparser.add_argument("-g", "--graph-file-name", required=True)
     subparser.set_defaults(func=add_indel_nodes)
 
+    subparser = subparsers.add_parser("add_allele_frequencies")
+    subparser.add_argument("-g", "--graph-file-name", required=True)
+    subparser.add_argument("-v", "--vcf-file-name", required=True)
+    subparser.set_defaults(func=add_allele_frequencies)
 
     if len(args) == 0:
         parser.print_help()
