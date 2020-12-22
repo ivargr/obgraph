@@ -35,7 +35,13 @@ class Graph:
 
     def get_node_at_chromosome_and_chromosome_offset(self, chromosome, offset):
         chromosome_position = chromosome - 1
-        chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+        try:
+            chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+        except IndexError:
+            logging.error("Could not find chromosome start position for chromosome %d. Chromosome start nodes are %s" % (chromosome, self.chromosome_start_nodes))
+            raise
+
+
         # Shift offset with chromosome start offset
         chromosome_offset = self.get_ref_offset_at_node(chromosome_start_node)
         real_offset = int(chromosome_offset + offset)
@@ -131,10 +137,18 @@ class Graph:
                 from_nodes.append(from_node)
                 to_nodes.append(to_node)
 
-        return Graph.from_flat_nodes_and_edges(nodes, node_sequences, node_sizes, np.array(from_nodes), np.array(to_nodes), np.array(linear_ref_nodes), [0])
+        return Graph.from_flat_nodes_and_edges(nodes, node_sequences, node_sizes, np.array(from_nodes), np.array(to_nodes), np.array(linear_ref_nodes), [node for node in nodes if node not in to_nodes])
 
     @classmethod
     def from_flat_nodes_and_edges(cls, node_ids, node_sequences, node_sizes, from_nodes, to_nodes, linear_ref_nodes, chromosome_start_nodes):
+
+        logging.info("Asserting linear ref nodes are not empty")
+        for i, node in enumerate(node_ids):
+            size = node_sizes[i]
+            if size == 0 and node in linear_ref_nodes:
+                raise Exception("Placeholder nodes (for insertions) cannot be marked as linear ref nodes, since that breaks ref position to node lookup. Best solution is to not put these in linear ref nodes")
+
+
         max_node = np.max(node_ids)
         nodes = np.zeros(max_node+1, dtype=np.uint8)
         nodes[node_ids] = node_sizes
@@ -152,7 +166,7 @@ class Graph:
         #node_sequences_array = np.array([np.zeros(size, dtype="<U1") for size in nodes])  # Must allocate space
         #node_sequences_array[node_ids] = node_sequences
 
-        logging.info("Sorting nodes")
+        #logging.info("Sorting nodes")
         sorting = np.argsort(from_nodes)
         from_nodes = from_nodes[sorting]
         to_nodes = to_nodes[sorting]
@@ -167,21 +181,27 @@ class Graph:
         n_edges_numbers = np.ediff1d(positions_of_unique_nodes, to_end=len(from_nodes)-positions_of_unique_nodes[-1])
         node_to_n_edges[unique_nodes] = n_edges_numbers
 
-        logging.info("Finding ref offsets")
+        #logging.info("Finding ref offsets")
         node_to_ref_offset = np.zeros(max_node+1, np.uint64)
         ref_node_sizes = nodes[linear_ref_nodes]
+        #print("Ref node sizes: %s"  % ref_node_sizes)
         ref_offsets = np.cumsum(ref_node_sizes)
+        #print("Ref offsets: %s"  % ref_offsets)
         node_to_ref_offset[linear_ref_nodes[1:]] = ref_offsets[:-1]
 
         # Find last node to add to linear ref size
         last_node_in_graph = np.argmax(node_to_ref_offset)
         last_node_size = nodes[last_node_in_graph]
-        logging.info("Last node in graph is %d with size %d" % (last_node_in_graph, last_node_size))
+        #logging.info("Last node in graph is %d with size %d" % (last_node_in_graph, last_node_size))
 
         ref_offset_to_node = np.zeros(int(np.max(node_to_ref_offset)) + last_node_size)
         index_positions = np.cumsum(ref_node_sizes)[:-1]
+        #logging.info("INdex positions: %s" % index_positions)
+        #logging.info("Linear ref nodes: %s" % linear_ref_nodes)
+        #logging.info("Diff linear ref nodes: %s" % np.diff(linear_ref_nodes))
         ref_offset_to_node[index_positions] = np.diff(linear_ref_nodes)
         ref_offset_to_node[0] = linear_ref_nodes[0]
+        #logging.info("Ref offset to node 1: %s" % ref_offset_to_node)
         ref_offset_to_node = np.cumsum(ref_offset_to_node, dtype=np.uint32)
 
         return cls(nodes, node_sequence_index, node_sequences_array, node_to_edge_index,
@@ -298,35 +318,54 @@ class Graph:
         deletion_node = deletion_nodes[0]
         return (node, deletion_node)
 
-    def get_insertion_nodes(self, ref_offset, read_offset):
-        base = self.bam_entry.query_sequence[read_offset]
-        node = self.reference_path.get_node_at_offset(ref_offset)
-        node_offset = self.reference_path.get_node_offset_at_offset(ref_offset)
-        node_size = self.blocks[node].length()
-        if node_offset != node_size - 1:
-            # We are not at end of node, insertion is not represented in the graph, ignore
-            return False
+    def get_insertion_nodes(self, variant, chromosome=1):
+        ref_offset = variant.position
+        #logging.info("Ref offset: %d" % ref_offset)
+        # Find node right before insertion node
+        node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset-1)
+        #logging.info("Node at ref offset: %d" % node)
+        node_offset = self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, ref_offset-1)
+        node_size = self.get_node_size(node)
+        insertion_length = len(variant.variant_sequence) - 1
+        insertion_sequence = variant.variant_sequence[1:]  # First base is not included
+
+        assert node_offset == node_size - 1, "Node offset %d is not at end of node %d which has size %d. Insertion not found in graph." % (node_offset, node, node_size)
 
         # Find out which next node matches the insertion
-        for potential_next in self.adj_list[node]:
-            if potential_next in self.linear_reference_nodes:
+        variant_node = None
+        for potential_next in self.get_edges(node):
+            if potential_next in self.linear_ref_nodes():
                 continue  # Next should not be in linear ref
 
             #print("Processing insertion at ref offset %d with base %s" % (ref_offset, base))
             #print("  Node %d with offset %d. Node size: %d" % (node, node_offset, self.blocks[node].length()))
 
-            next_base = self.sequence_graph.get_sequence(potential_next, 0, 1).upper()
-            if next_base == base.upper():
-                self._variant_edges_detected.add((node, potential_next))
-                self.n_insertions += 1
-                #print("  Found next node %d with seq %s" % (potential_next, next_base))
-                return
+            next_bases = self.get_node_sequence(potential_next)[0:insertion_length].upper()
+            if next_bases == insertion_sequence.upper():
+                variant_node = potential_next
+                break
+
+        assert variant_node is not None, "Could not find insertion node. No nodes going out from %d has sequence %s" % (node, variant.variant_sequence)
+
+        # Find linear reference node
+        next_ref_pos = ref_offset + insertion_length
+        next_ref_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
+        assert next_ref_node in self.get_edges(variant_node), "Failed parsing insertion %s. Found %d as next ref node after variant node, but there is no edge from variantnode %d to %d" % (variant, next_ref_node, variant_node, next_ref_node)
+        # If there are multiple insertions, one could find the correct dummy node by choosing the one that goes to next node with lowest ref pos
+        dummy_nodes = [node for node in self.get_edges(node) if next_ref_node in self.get_edges(node) and self.get_node_size(node) == 0]
+        assert len(dummy_nodes) == 1, "There are not exactly 1 insertion node between %d and %d. Nodes of length 0 between are %s" % (node, next_ref_node, dummy_nodes)
+        insertion_node = dummy_nodes[0]
+        assert next_ref_node in self.get_edges(insertion_node), "Failed parsing insertion %s. Found %d as next ref node after dummy node, but there is no edge from dumy node %d to %d" % (variant, next_ref_node, insertion_node, next_ref_node)
+
+        return (insertion_node, variant_node)
 
     def get_variant_nodes(self, variant, chromosome=1):
         if variant.type == "SNP":
             return self.get_snp_nodes(variant.position-1, variant.variant_sequence, chromosome)
         elif variant.type == "DELETION":
-            return self.get_deletion_nodes(variant.position-1, len(variant.ref_sequence)-1)
+            return self.get_deletion_nodes(variant.position-1, len(variant.ref_sequence)-1, chromosome)
+        elif variant.type == "INSERTION":
+            return self.get_insertion_nodes(variant, chromosome)
 
-        return None, None
+        raise Exception("Invalid variant %s. Has no type set." % variant)
 

@@ -19,6 +19,7 @@ def add_indel_dummy_nodes(graph):
 
                 # Find all edges going to linear ref node where
                 for next_node in edges:
+                    # deletions and insertions
                     if next_node in linear_ref_set and len([other_next for other_next in edges if other_next != next_node and next_node in graph.get_edges(other_next)]) > 0:
                         node_ids.append(node_counter)
                         node_sequences.append([""])
