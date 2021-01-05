@@ -4,6 +4,8 @@ import sys
 import argparse
 from . import Graph
 from .util import add_indel_dummy_nodes
+from alignment_free_graph_genotyper.variants import GenotypeCalls
+from .haplotype_nodes import HaplotypeNodes
 
 def make(args):
     logging.info("Will create from files %s" % args.vg_json_files)
@@ -22,9 +24,17 @@ def add_allele_frequencies(args):
     logging.info("Wrote modified graph to the same file %s" % args.graph_file_name)
 
 
+def get_haplotype_nodes(args):
+    graph = Graph.from_file(args.graph_file_name)
+    variants = GenotypeCalls.from_vcf(args.vcf_file_name)
+    haplotype_nodes = HaplotypeNodes.from_graph_and_variants(graph, variants, args.n_haplotypes)
+    logging.info("Saving to file")
+    haplotype_nodes.to_file(args.out_file_name)
+    logging.info("Wrote to file %s" % args.out_file_name)
+
+
 def main():
     run_argument_parser(sys.argv[1:])
-
 
 
 def run_argument_parser(args):
@@ -49,6 +59,14 @@ def run_argument_parser(args):
     subparser.add_argument("-g", "--graph-file-name", required=True)
     subparser.add_argument("-v", "--vcf-file-name", required=True)
     subparser.set_defaults(func=add_allele_frequencies)
+
+    subparser = subparsers.add_parser("get_haplotype_nodes")
+    subparser.add_argument("-g", "--graph-file-name", required=True)
+    subparser.add_argument("-v", "--vcf-file-name", required=True)
+    subparser.add_argument("-n", "--n-haplotypes", type=int, required=True)
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.set_defaults(func=get_haplotype_nodes)
+
 
     if len(args) == 0:
         parser.print_help()

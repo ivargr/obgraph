@@ -3,6 +3,7 @@ import logging
 import re
 import numpy as np
 from alignment_free_graph_genotyper.variants import GenotypeCalls
+from collections import defaultdict
 
 class Graph:
     def __init__(self, nodes, node_to_sequence_index, node_sequences, node_to_edge_index, node_to_n_edges, edges,
@@ -28,6 +29,12 @@ class Graph:
     def get_node_sequence(self, node):
         index_position = self.node_to_sequence_index[node]
         return ''.join(self.node_sequences[index_position:index_position+self.nodes[node]])
+
+    def get_nodes_sequence(self, nodes):
+        sequences = []
+        for node in nodes:
+            sequences.append(self.get_node_sequence(node))
+        return ''.join(sequences)
 
     def get_node_offset_at_chromosome_and_chromosome_offset(self, chromosome, offset):
         chromosome_position = chromosome - 1
@@ -400,6 +407,65 @@ class Graph:
 
         self.allele_frequencies = frequencies
 
+    def get_variant_nodes_in_region(self, chromosome, linear_ref_start, linear_ref_end):
+        nodes = set(self.get_node_at_chromosome_and_chromosome_offset(chromosome, pos) for pos in range(linear_ref_start, linear_ref_end))
+        return [self.get_edges(node) for node in nodes if len(self.get_edges(node)) == 2]
 
+    def get_first_node(self):
+        for candidate in [0, 1]:
+            if len(self.get_edges(candidate)) > 0:
+                return candidate
+
+        raise Exception("Couldn't find first graph node")
+
+    def get_haplotype_node_paths_for_haplotypes(self, variants, limit_to_n_haplotypes=10):
+        # First find all variant nodes that the haplotype has
+        haplotypes = list(range(0, limit_to_n_haplotypes))
+        variant_nodes_in_haplotype = defaultdict(set)
+        for i, variant in enumerate(variants):
+            if i % 1000 == 0:
+                logging.info("%d variants processed" % i)
+            reference_node, variant_node = self.get_variant_nodes(variant)
+
+            genotypes = variant.vcf_line.split()[9:]
+            for haplotype in haplotypes:
+                individual_number = haplotype // 2
+                haplotype_number = haplotype - individual_number * 2
+                haplotype_string = genotypes[individual_number].replace("/", "|").split("|")[haplotype_number]
+                if haplotype_string == "1":
+                    # Follows the variant, add variant node here
+                    variant_nodes_in_haplotype[haplotype].add(variant_node)
+                else:
+                    variant_nodes_in_haplotype[haplotype].add(reference_node)
+
+        # Iterate graph
+        nodes = np.zeros((len(haplotypes), len(self.nodes)), dtype=np.uint32)
+        for haplotype in haplotypes:
+            current_node = self.get_first_node()
+            i = 0
+            while True:
+                #nodes[haplotype].append(current_node)
+                nodes[haplotype, i] = current_node
+
+                next_nodes = self.get_edges(current_node)
+                if len(next_nodes) == 0:
+                    break
+
+                next_node = None
+                if len(next_nodes) == 1:
+                    next_node = next_nodes[0]
+                else:
+                    for potential_next in next_nodes:
+                        if potential_next in variant_nodes_in_haplotype[haplotype]:
+                            next_node = potential_next
+
+                assert next_node is not None
+
+                current_node = next_node
+                i += 1
+
+            nodes[haplotype, i] = current_node
+
+        return nodes
 
 
