@@ -4,6 +4,10 @@ import re
 import numpy as np
 from alignment_free_graph_genotyper.variants import GenotypeCalls
 from collections import defaultdict
+from .mutable_graph import MutableGraph
+
+class VariantNotFoundException(Exception):
+    pass
 
 class Graph:
     def __init__(self, nodes, node_to_sequence_index, node_sequences, node_to_edge_index, node_to_n_edges, edges,
@@ -19,6 +23,40 @@ class Graph:
         self._linear_ref_nodes_cache = None
         self.chromosome_start_nodes = chromosome_start_nodes
         self.allele_frequencies = allele_frequencies
+
+    def node_has_edges(self, node, edges):
+        e = self.get_edges(node)
+        if len(edges) != len(e):
+            return False
+
+        for edge in edges:
+            if edge not in edges:
+                return False
+
+        return True
+
+    def get_all_nodes(self):
+        return np.union1d(np.where(self.nodes != 0)[0], np.where(self.node_to_n_edges > 0)[0])
+        # This does not return nodes of size 0
+        #return np.where(self.nodes != 0)[0]
+
+    def __str__(self):
+        mutable_graph = self.to_mutable_graph()
+        return str(mutable_graph)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def to_mutable_graph(self):
+        all_nodes = self.get_all_nodes()
+        nodes = {node: self.get_node_size(node) for node in all_nodes}
+        node_sequences = {node: self.get_node_sequence(node) for node in all_nodes}
+        edges = {node: list(self.get_edges(node)) for node in all_nodes}
+        return MutableGraph(nodes, node_sequences, edges, list(self.linear_ref_nodes()), self.node_to_ref_offset, self.ref_offset_to_node, self.chromosome_start_nodes, self.allele_frequencies)
+
+    @classmethod
+    def from_mutable_graph(cls, mutable_graph):
+        return cls.from_dicts(mutable_graph.node_sequences, mutable_graph.edges, mutable_graph.linear_ref_nodes)
 
     def get_node_size(self, node):
         return self.nodes[node]
@@ -204,7 +242,11 @@ class Graph:
 
         #logging.info("Finding ref offsets")
         node_to_ref_offset = np.zeros(max_node+1, np.uint64)
-        ref_node_sizes = nodes[linear_ref_nodes]
+        try:
+            ref_node_sizes = nodes[linear_ref_nodes]
+        except IndexError:
+            print(type(linear_ref_nodes))
+            raise
         #print("Ref node sizes: %s"  % ref_node_sizes)
         ref_offsets = np.cumsum(ref_node_sizes)
         #print("Ref offsets: %s"  % ref_offsets)
@@ -301,11 +343,20 @@ class Graph:
             if potential_next == node:
                 continue
 
+            if self.get_node_size(potential_next) == 0:
+                continue  # this is an empty insertion/deletion node
+
             node_seq = self.get_node_sequence(potential_next)[0]
             if node_seq.lower() == variant_bases.lower():
-                return node, potential_next
+                # Also require that this node shares next node with our ref snp node, if not this could be a false match against an indel node
+                next_from_snp_node = self.get_edges(node)
+                #assert len(next_from_snp_node), "SNP node has multiple next? Might be posible, not supported now"
+                #logging.info("Checking potential next %d. Has edges %s" % (potential_next, self.get_edges(potential_next)))
+                if len([n for n in next_from_snp_node if n in self.get_edges(potential_next)]) > 0:
+                    return node, potential_next
 
         logging.error("Could not parse substitution at offset %d with bases %s" % (ref_offset, variant_bases))
+        logging.error("Next nodes from snp node: %d" % next_from_snp_node)
         raise Exception("Parseerrror")
 
     def get_deletion_nodes(self, ref_offset, deletion_length, chromosome=1):
@@ -324,19 +375,23 @@ class Graph:
         next_ref_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset + deletion_length)
         #logging.info("Node after deletion: %d" % next_ref_node)
         if self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, next_ref_pos) != 0:
-            logging.error("Offset %d is not at beginning of node" % next_ref_pos)
-            logging.error("Node at %d: %d" % (next_ref_pos, next_ref_node))
-            logging.error("Ref length in deletion: %s" % deletion_length)
-            logging.info("Ref pos beginning of deletion: %d" % ref_offset)
-            raise Exception("Deletion not in graph")
+            logging.info("Could not find deletion at ref offset %d in graph" % ref_offset)
+            #logging.error("Offset %d is not at beginning of node" % next_ref_pos)
+            #logging.error("Node at %d: %d" % (next_ref_pos, next_ref_node))
+            #logging.error("Ref length in deletion: %s" % deletion_length)
+            #logging.info("Ref pos beginning of deletion: %d" % ref_offset)
+
+            raise VariantNotFoundException("Deletion not in graph")
 
         # Find an empty node between prev_node and next_ref_node
+        # This solution should handle cases where the reference has multiple nodes inside deleted segment (e.g. a SNP inside a deleted sequence)
         deletion_nodes = [node for node in self.get_edges(prev_node) if next_ref_node in self.get_edges(node) and self.get_node_size(node) == 0]
         #debug = [(node, self.get_edges(node), self.get_node_size(node)) for node in self.get_edges(prev_node)]
         #logging.info("%s" % debug)
         assert len(deletion_nodes) == 1, "There should be only one deletion node between %d and %d. There are %d. Edges out from %d are: %s. Edges out from %d are %s" % (prev_node, next_ref_node, len(deletion_nodes), prev_node, self.get_edges(prev_node), node, self.get_edges(node))
 
         deletion_node = deletion_nodes[0]
+        assert len(self.get_edges(deletion_node)) == 1, "Deletion node %d has not exactly 1 edge" % deletion_node
         return (node, deletion_node)
 
     def get_insertion_nodes(self, variant, chromosome=1):
@@ -353,6 +408,8 @@ class Graph:
         assert node_offset == node_size - 1, "Node offset %d is not at end of node %d which has size %d. Insertion not found in graph." % (node_offset, node, node_size)
 
         # Find out which next node matches the insertion
+        # NB! There might be more than one node with the same sequence going out before the variant, since a SNP can have same sequence as the insertion
+        next_ref_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
         variant_node = None
         for potential_next in self.get_edges(node):
             if potential_next in self.linear_ref_nodes():
@@ -361,16 +418,18 @@ class Graph:
             #print("Processing insertion at ref offset %d with base %s" % (ref_offset, base))
             #print("  Node %d with offset %d. Node size: %d" % (node, node_offset, self.blocks[node].length()))
 
+            if self.get_node_size(potential_next) == 0:
+                continue  # This is an empty deletion node
+
             next_bases = self.get_node_sequence(potential_next)[0:insertion_length].upper()
             if next_bases == insertion_sequence.upper():
-                variant_node = potential_next
-                break
+                if next_ref_node in self.get_edges(potential_next):
+                    variant_node = potential_next
+                    break
 
         assert variant_node is not None, "Could not find insertion node. No nodes going out from %d has sequence %s" % (node, variant.variant_sequence)
 
-        # Find linear reference node
-        next_ref_pos = ref_offset + insertion_length
-        next_ref_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
+        # Find linear reference node (empty dummy node)
         assert next_ref_node in self.get_edges(variant_node), "Failed parsing insertion %s. Found %d as next ref node after variant node, but there is no edge from variantnode %d to %d" % (variant, next_ref_node, variant_node, next_ref_node)
         # If there are multiple insertions, one could find the correct dummy node by choosing the one that goes to next node with lowest ref pos
         dummy_nodes = [node for node in self.get_edges(node) if next_ref_node in self.get_edges(node) and self.get_node_size(node) == 0]
@@ -399,8 +458,12 @@ class Graph:
         for i, variant in enumerate(variants):
             if i % 1000 == 0:
                 logging.info("%d variants processed" % i)
-            reference_node, variant_node = self.get_variant_nodes(variant)
-            reference_af = variant.get_reference_allele_frequency()
+            try:
+                reference_node, variant_node = self.get_variant_nodes(variant)
+                reference_af = variant.get_reference_allele_frequency()
+            except VariantNotFoundException:
+                logging.info("Variant %s not found in graph" % variant)
+                continue
             variant_af = variant.get_variant_allele_frequency()
             frequencies[reference_node] = reference_af
             frequencies[variant_node] = variant_af
@@ -467,5 +530,13 @@ class Graph:
             nodes[haplotype, i] = current_node
 
         return nodes
+
+    def get_reverse_edges_dict(self):
+        reverse_edges = defaultdict(list)
+        for node in self.get_all_nodes():
+            for edge in self.get_edges(node):
+                reverse_edges[edge].append(node)
+
+        return reverse_edges
 
 

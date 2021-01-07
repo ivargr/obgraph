@@ -1,6 +1,7 @@
 import numpy as np
 from collections import defaultdict
 import logging
+from .graph import VariantNotFoundException
 
 # Simple placeholder class for representing a matrix
 # rows are haplotypes
@@ -31,7 +32,14 @@ class HaplotypeNodes:
         for i, variant in enumerate(variants):
             if i % 1000 == 0:
                 logging.info("%d variants processed" % i)
-            reference_node, variant_node = graph.get_variant_nodes(variant)
+
+            try:
+                reference_node, variant_node = graph.get_variant_nodes(variant)
+            except VariantNotFoundException:
+                continue
+
+            if variant.position == 4871514:
+                logging.info("Variant 4871514 has nodes %d/%d" % (reference_node, variant_node))
 
             genotypes = variant.vcf_line.split()[9:]
             for haplotype in haplotypes:
@@ -39,9 +47,13 @@ class HaplotypeNodes:
                 haplotype_number = haplotype - individual_number * 2
                 haplotype_string = genotypes[individual_number].replace("/", "|").split("|")[haplotype_number]
                 if haplotype_string == "1":
+                    if variant.position == 4871514:
+                        logging.info("Haplotype %d has variant" % (haplotype))
                     # Follows the variant, add variant node here
                     variant_nodes_in_haplotype[haplotype].add(variant_node)
                 else:
+                    if variant.position == 4871514:
+                        logging.info("Haplotype %d does not have variant" % (haplotype))
                     variant_nodes_in_haplotype[haplotype].add(reference_node)
 
         # Iterate graph
@@ -66,7 +78,10 @@ class HaplotypeNodes:
                         if potential_next in variant_nodes_in_haplotype[haplotype]:
                             next_node = potential_next
 
-                assert next_node is not None
+                if next_node is None:
+                    logging.error("Could not find next node from node %d" % current_node)
+                    logging.error("Possible next nodes are %s" % next_nodes)
+                    raise Exception("")
 
                 current_node = next_node
                 i += 1
