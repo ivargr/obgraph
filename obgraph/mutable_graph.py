@@ -1,4 +1,5 @@
 from collections import defaultdict
+import logging
 
 
 class MutableGraph:
@@ -7,7 +8,11 @@ class MutableGraph:
         self.node_sequences = node_sequences
         self.edges = edges
         self.linear_ref_nodes = linear_ref_nodes
-        print("Linear ref nodes: %s" % self.linear_ref_nodes)
+        if linear_ref_nodes is not None:
+            self.linear_ref_nodes_set = set(linear_ref_nodes)
+        else:
+            self.linear_ref_nodes_set = set()
+
         self.node_to_ref_offset = node_to_ref_offset
         self.ref_offset_to_node = ref_offset_to_node
         self.chromosome_start_nodes = chromosome_start_nodes
@@ -49,7 +54,6 @@ class MutableGraph:
             self.edges[from_node] = []
 
         self.edges[from_node].append(to_node)
-        print("   Adding edge from %d to %d" % (from_node, to_node))
 
         if to_node not in self.reverse_edges:
             self.reverse_edges[to_node] = []
@@ -63,32 +67,44 @@ class MutableGraph:
     def get_nodes_before(self, node):
         return self.reverse_edges[node]
 
-    def find_nodes_from_node_that_matches_sequence(self, from_node, sequence, nodes_found=[]):
-
+    def find_nodes_from_node_that_matches_sequence(self, from_node, sequence, variant_type, nodes_found, all_paths_found):
+        #logging.info("== Searching from node %d with sequence %s. Variant type %s. Nodes found: %s. All paths found: %s" % (from_node, sequence, variant_type, nodes_found, all_paths_found))
         if sequence == "":
             # All of the sequence is used successfully, return
-            return nodes_found
+            all_paths_found.append(nodes_found)
+            #logging.info("   RETURNING. All paths found: %s" % all_paths_found)
+            return nodes_found, all_paths_found
 
         next_nodes = self.get_edges(from_node)
-
+        result = (nodes_found, all_paths_found)
         for possible_next in next_nodes:
+
             #print("Checking next node %d" % possible_next)
+            """
+            if variant_type == "DELETION" and possible_next not in self.linear_ref_nodes_set:
+                #print("SKipping deletion")
+                #print(self.linear_ref_nodes_set)
+                continue
+            elif variant_type == "INSERTION" and (possible_next in self.linear_ref_nodes_set or self.get_node_size(possible_next) == 0):
+                #print("Skipping insertion")
+                #print(self.linear_ref_nodes_set)
+                continue
+            """
+
             node_size = self.get_node_size(possible_next)
             if node_size == 0 or self.get_node_sequence(possible_next).lower() == sequence[0:node_size].lower():
                 # This node is a match, we can continue searching
                 new_sequence = sequence[node_size:]
                 new_nodes_found = nodes_found.copy()
                 new_nodes_found.append(possible_next)
+
                 #print("   Matching sequence. New sequence is now %s" % new_sequence)
-                result = self.find_nodes_from_node_that_matches_sequence(possible_next, new_sequence, new_nodes_found)
+                result = MutableGraph.find_nodes_from_node_that_matches_sequence(self, possible_next, new_sequence, variant_type, new_nodes_found, all_paths_found)
                 if not result:
                     continue
-                else:
-                    return result
             else:
                 #print("   No sequence match")
                 continue
 
-        # No match in this search path
-        return False
+        return result
 
