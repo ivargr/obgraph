@@ -26,6 +26,56 @@ class MostSimilarVariantLookup:
         return cls(data["lookup_array"], data["prob_same_genotype"])
 
 
+class GenotypeFrequencies:
+    def __init__(self, homo_ref, homo_alt, hetero):
+        self.homo_ref = homo_ref
+        self.homo_alt = homo_alt
+        self.hetero = hetero
+
+    @classmethod
+    def from_genotype_matrix(cls, genotype_matrix):
+        n_variants = genotype_matrix.matrix.shape[1]
+        n_individuals = len(np.where(genotype_matrix.matrix[:,0])[0] != 0)  # can be zeros for non-individuals, so all non-zero is an individual
+        logging.info("Assumes there are %d individuals and %d variants" % (n_individuals, n_variants))
+        data = {1: np.zeros(n_variants, dtype=float), 2: np.zeros(n_variants, dtype=float), 3: np.zeros(n_variants, dtype=float)}
+
+        """
+        for numeric_genotype, array in data.items():
+            logging.info("Finding for genotype %d" % numeric_genotype)
+            # the second index from np where gives the columns that have a hit, every column 1 time for each hit
+            column_hits = np.where(genotype_matrix.matrix == numeric_genotype)[1]
+            logging.info("Making frequencies")
+            unique_columns, n_hits_per_column = np.unique(column_hits, return_counts=True)
+            data[numeric_genotype][unique_columns] = n_hits_per_column / n_individuals
+        """
+        # Less memory hungry, but slower
+        for numeric_genotype, array in data.items():
+            logging.info("Finding for genotype %d" % numeric_genotype)
+            for variant_id in range(n_variants):
+                if variant_id % 10000 == 0:
+                    logging.info("%d variants processed" % variant_id)
+
+                array[variant_id] = len(np.where(genotype_matrix.matrix[:,variant_id] == numeric_genotype)[0]) / n_individuals
+
+
+        return cls(data[1], data[2], data[3])
+
+    def get_frequencies_for_variant(self, variant_id):
+        return self.homo_ref[variant_id], self.homo_alt[variant_id], self.hetero[variant_id]
+
+    @classmethod
+    def from_file(cls, file_name):
+        try:
+            data = np.load(file_name)
+        except FileNotFoundError:
+            data = np.load(file_name + ".npz")
+
+        return cls(data["homo_ref"], data["homo_alt"], data["hetero"])
+
+    def to_file(self, file_name):
+        np.savez(file_name, homo_ref=self.homo_ref, homo_alt=self.homo_alt, hetero=self.hetero)
+
+
 class GenotypeMatrixAnalyser:
     def __init__(self, genotype_matrix):
         self.matrix = genotype_matrix.matrix
@@ -72,6 +122,19 @@ class GenotypeMatrixAnalyser:
 class GenotypeMatrix:
     def __init__(self, matrix):
         self.matrix = matrix
+
+    @classmethod
+    def from_variants(cls, variants, n_individuals):
+        n_variants = len(variants)
+        matrix = np.zeros((n_individuals, n_variants), dtype=np.uint8)
+
+        for variant_number, variant in enumerate(variants):
+            if variant_number % 1000 == 0:
+                logging.info("%d variants processeed" % variant_number)
+            for individual_id, genotype in variant.get_individuals_and_numeric_genotypes():
+                matrix[individual_id, variant_number] = genotype
+
+        return cls(matrix)
 
     @classmethod
     def from_nodes_to_haplotypes_and_variants(cls, nodes_to_haplotypes, variants, graph, n_individuals):

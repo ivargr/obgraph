@@ -429,7 +429,6 @@ class Graph:
                 deletion_nodes = [n for n in deletion_nodes if n in self.get_edges(node)]
                 if len(deletion_nodes) == 0:
                     logging.warning("Error on deletion at pos %s. Deletion nodes: %s. Orig deletion nodes: %s. Edges going out: %s" % (ref_offset, deletion_nodes, deletion_nodes_orig, self.get_edges(node)))
-                    assert False
                     raise VariantNotFoundException("Deletion not found")
 
 
@@ -507,12 +506,13 @@ class Graph:
 
     def set_allele_frequencies_from_vcf(self, vcf_file_name, chromosome=1):
         assert chromosome == 1, "Not implemented for other chromosomes than 1"
+        logging.info("Reading all variants")
         variants = GenotypeCalls.from_vcf(vcf_file_name)
 
         frequencies = np.zeros(len(self.nodes), dtype=np.float16) + 1  # Set all to 1.0 initially
 
         for i, variant in enumerate(variants):
-            if i % 1000 == 0:
+            if i % 10000 == 0:
                 logging.info("%d variants processed" % i)
             try:
                 reference_node, variant_node = self.get_variant_nodes(variant)

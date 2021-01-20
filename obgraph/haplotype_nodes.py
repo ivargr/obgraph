@@ -38,7 +38,6 @@ class HaplotypeToNodes:
     @classmethod
     def correct_by_traversing_graph(cls, graph, n_haplotypes, store_only_variant_nodes=False):
         # Go through all haplotypes, for each haplotype traverse the graph
-
         pass
 
     @classmethod

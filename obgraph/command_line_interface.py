@@ -8,6 +8,7 @@ from alignment_free_graph_genotyper.variants import GenotypeCalls
 from .haplotype_nodes import HaplotypeToNodes, NodeToHaplotypes
 from .dummy_node_adder import DummyNodeAdder
 from .haplotype_nodes import NodeToHaplotypes
+from .genotype_matrix import GenotypeMatrix, GenotypeMatrixAnalyser, GenotypeFrequencies
 
 from . import cython_traversing
 
@@ -33,6 +34,7 @@ def add_indel_nodes2(args):
     new_graph.to_file(args.out_file_name)
 
 def add_allele_frequencies(args):
+    logging.info("Reading graph")
     graph = Graph.from_file(args.graph_file_name)
     graph.set_allele_frequencies_from_vcf(args.vcf_file_name)
     graph.to_file(args.graph_file_name)
@@ -97,21 +99,26 @@ def run_argument_parser(args):
     def make_genotype_matrix(args):
         from .genotype_matrix import GenotypeMatrix
         graph = Graph.from_file(args.graph)
-        variants = GenotypeCalls.from_vcf(args.vcf_file_name)
-        nodes_to_haplotypes = NodeToHaplotypes.from_file(args.node_to_haplotypes)
-        matrix = GenotypeMatrix.from_nodes_to_haplotypes_and_variants(nodes_to_haplotypes, variants, graph, args.n_individuals)
+        variants = GenotypeCalls.from_vcf(args.vcf_file_name, skip_index=True, limit_to_n_lines=None)
+
+        if args.node_to_haplotypes is not None:
+            nodes_to_haplotypes = NodeToHaplotypes.from_file(args.node_to_haplotypes)
+            matrix = GenotypeMatrix.from_nodes_to_haplotypes_and_variants(nodes_to_haplotypes, variants, graph, args.n_individuals)
+        else:
+            logging.info("Making genotype matrix directly from vcf")
+            matrix = GenotypeMatrix.from_variants(variants, args.n_individuals)
+
         matrix.to_file(args.out_file_name)
 
     subparser = subparsers.add_parser("make_genotype_matrix")
     subparser.add_argument("-g", "--graph", required=True)
     subparser.add_argument("-v", "--vcf-file-name", required=True)
     subparser.add_argument("-n", "--n-individuals", type=int, required=True)
-    subparser.add_argument("-N", "--node_to_haplotypes", required=True)
+    subparser.add_argument("-N", "--node_to_haplotypes", required=False)
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.set_defaults(func=make_genotype_matrix)
 
     def analyse_genotype_matrix(args):
-        from .genotype_matrix import GenotypeMatrix, GenotypeMatrixAnalyser
 
         matrix = GenotypeMatrix.from_file(args.genotype_matrix)
         analyser = GenotypeMatrixAnalyser(matrix)
@@ -146,7 +153,16 @@ def run_argument_parser(args):
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.set_defaults(func=traverse)
 
+    def get_genotype_frequencies(args):
+        matrix = GenotypeMatrix.from_file(args.genotype_matrix)
+        frequencies = GenotypeFrequencies.from_genotype_matrix(matrix)
+        frequencies.to_file(args.out_file_name)
+        logging.info("Wrote frequencies to file %s" % args.out_file_name)
 
+    subparser = subparsers.add_parser("get_genotype_frequencies")
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.add_argument("-g", "--genotype-matrix", required=True)
+    subparser.set_defaults(func=get_genotype_frequencies)
 
 
     if len(args) == 0:
