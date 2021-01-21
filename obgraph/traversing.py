@@ -11,12 +11,17 @@ def traverse_graph_by_following_nodes(graph, follow_nodes, only_add_nodes_in_fol
     current_node = graph.get_first_node()
     i = 0
     while True:
-        if current_node in follow_nodes:
+        if current_node in follow_nodes and only_add_nodes_in_follow_nodes:
+            nodes_found.append(current_node)
+        else:
             nodes_found.append(current_node)
 
         next_nodes = graph.get_edges(current_node)
         if len(next_nodes) == 0:
             break
+
+        if i % 100000 == 0:
+            logging.info("%i nodes traversed (total is approx %d)" % (i, len(linear_ref_nodes)))
 
         next_node = None
         if len(next_nodes) == 1:
@@ -37,7 +42,7 @@ def traverse_graph_by_following_nodes(graph, follow_nodes, only_add_nodes_in_fol
         current_node = next_node
         i += 1
 
-    if current_node in follow_nodes:
+    if current_node in follow_nodes or not only_add_nodes_in_follow_nodes:
         nodes_found.append(current_node)
 
     return nodes_found

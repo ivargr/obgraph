@@ -6,6 +6,7 @@ import pickle
 from multiprocessing import Pool, Process
 from graph_kmer_index.shared_mem import to_shared_memory, from_shared_memory
 from itertools import repeat
+from .traversing import traverse_graph_by_following_nodes
 
 class HaplotypeToNodes:
     def __init__(self, haplotype_to_index, haplotype_to_n_nodes, nodes):
@@ -26,6 +27,17 @@ class HaplotypeToNodes:
 
         return self._nodes[index:index+n]
 
+    def __getitem__(self, item):
+        return self.get_nodes(item)
+
+    def get_n_haplotypes_on_nodes_array(self, n_nodes):
+        counts = np.zeros(n_nodes)
+        for haplotype in range(len(self._haplotype_to_index)):
+            nodes = self.get_nodes(haplotype)
+            counts[nodes] += 1
+
+        return counts
+
     @classmethod
     def from_file(cls, file_name):
         try:
@@ -35,10 +47,28 @@ class HaplotypeToNodes:
 
         return cls(data["index"], data["n"], data["haplotypes"])
 
-    @classmethod
-    def correct_by_traversing_graph(cls, graph, n_haplotypes, store_only_variant_nodes=False):
-        # Go through all haplotypes, for each haplotype traverse the graph
-        pass
+    def get_new_by_traversing_graph(self, graph, n_haplotypes, store_only_variant_nodes=False):
+        haplotype_to_index = []
+        haplotype_to_n_nodes = []
+        nodes = []
+
+        index = 0
+        for haplotype in range(n_haplotypes):
+            haplotype_to_index.append(index)
+            nodes_in_haplotype = self.get_nodes(haplotype)
+
+            # Traverse graph by following these nodes,
+            new_nodes = traverse_graph_by_following_nodes(graph, set(nodes_in_haplotype))
+            logging.info("Got %d new nodes by traversing graph for haplotype %d" % (len(new_nodes), haplotype))
+
+            nodes.extend(new_nodes)
+            index += len(new_nodes)
+            haplotype_to_n_nodes.append(len(new_nodes))
+
+        new = HaplotypeToNodes(np.array(haplotype_to_index, dtype=np.uint32), np.array(haplotype_to_n_nodes, dtype=np.uint32), np.array(nodes, dtype=np.uint32))
+        print("N nodes: %s" % new._haplotype_to_n_nodes)
+
+        return new
 
     @classmethod
     def from_flat_haplotypes_and_nodes(cls, haplotypes, nodes):
@@ -57,13 +87,15 @@ class HaplotypeToNodes:
         logging.info("Making index")
         diffs = np.ediff1d(haplotypes, to_begin=1)
         unique_entry_positions = np.nonzero(diffs)[0]
+        print(unique_entry_positions)
         unique_haplotypes = haplotypes[unique_entry_positions]
 
         lookup_size = int(np.max(haplotypes)) + 1
         lookup = np.zeros(lookup_size, dtype=np.uint32)
         lookup[unique_haplotypes] = unique_entry_positions
         n_entries = np.ediff1d(unique_entry_positions, to_end=len(haplotypes) - unique_entry_positions[-1])
-        n_nodes = np.zeros(lookup_size, dtype=np.uint16)
+        print("N entries: %s" % n_entries)
+        n_nodes = np.zeros(lookup_size, dtype=np.uint32)
         n_nodes[unique_haplotypes] = n_entries
 
         return cls(lookup, n_nodes, nodes)
@@ -72,6 +104,36 @@ class HaplotypeToNodes:
     def _multiprocess_wrapper(shared_memory_graph_name, variants, limit_to_n_haplotypes=10):
         graph = from_shared_memory(Graph, shared_memory_graph_name)
         return HaplotypeToNodes.get_flat_haplotypes_and_nodes_from_graph_and_variants(graph, variants, limit_to_n_haplotypes)
+
+    @classmethod
+    def make_from_n_random_haplotypes(cls, graph, variants, n_haplotypes=10):
+        # Simple way of making "arbitrary" haplotypes, just give every nth variant to every haplotype
+        current_haplotype = 0
+
+        flat_haplotypes = []
+        flat_nodes = []
+        for i, variant in enumerate(variants):
+            if i % 1000 == 0:
+                logging.info("%d variants processed" % i)
+
+            try:
+                reference_node, variant_node = graph.get_variant_nodes(variant)
+            except VariantNotFoundException:
+                continue
+
+            # Give variant node to current haplotype
+            flat_haplotypes.append(current_haplotype % n_haplotypes)
+            flat_nodes.append(variant_node)
+
+            # Give ref node to all others
+            for haplotype in range(n_haplotypes):
+                if haplotype != current_haplotype  % n_haplotypes:
+                    flat_haplotypes.append(haplotype)
+                    flat_nodes.append(reference_node)
+
+            current_haplotype += 1
+
+        return cls.from_flat_haplotypes_and_nodes(flat_haplotypes, flat_nodes)
 
     @staticmethod
     def get_flat_haplotypes_and_nodes_from_graph_and_variants(graph, variants, limit_to_n_haplotypes=10):

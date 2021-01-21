@@ -164,6 +164,22 @@ def run_argument_parser(args):
     subparser.add_argument("-g", "--genotype-matrix", required=True)
     subparser.set_defaults(func=get_genotype_frequencies)
 
+    def make_random_haplotypes(args):
+        graph = Graph.from_file(args.graph)
+        variants = GenotypeCalls.from_vcf(args.vcf_file_name, skip_index=True)
+        haplotype_nodes = HaplotypeToNodes.make_from_n_random_haplotypes(graph, variants, n_haplotypes=args.n_haplotypes)
+        logging.info("Making new haplotypenodes by traversing full graph for each haplotype")
+        new = haplotype_nodes.get_new_by_traversing_graph(graph, args.n_haplotypes)
+        new.to_file(args.out_file_name)
+        logging.info("Wrote haplotypenodes to %s" % args.out_file_name)
+
+    subparser = subparsers.add_parser("make_random_haplotypes")
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.add_argument("-g", "--graph", required=True)
+    subparser.add_argument("-v", "--vcf-file-name", required=True)
+    subparser.add_argument("-n", "--n-haplotypes", type=int, required=False, default=10)
+    subparser.set_defaults(func=make_random_haplotypes)
+
 
     if len(args) == 0:
         parser.print_help()
