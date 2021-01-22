@@ -7,6 +7,7 @@ from multiprocessing import Pool, Process
 from graph_kmer_index.shared_mem import to_shared_memory, from_shared_memory
 from itertools import repeat
 from .traversing import traverse_graph_by_following_nodes
+import random
 
 class HaplotypeToNodes:
     def __init__(self, haplotype_to_index, haplotype_to_n_nodes, nodes):
@@ -110,6 +111,8 @@ class HaplotypeToNodes:
         # Simple way of making "arbitrary" haplotypes, just give every nth variant to every haplotype
         current_haplotype = 0
 
+        haplotype_ids = list(range(n_haplotypes))
+
         flat_haplotypes = []
         flat_nodes = []
         for i, variant in enumerate(variants):
@@ -121,6 +124,18 @@ class HaplotypeToNodes:
             except VariantNotFoundException:
                 continue
 
+            # Select number of haplotypes on variant node by allele frequency, always minimum 1
+            n_haplotypes_on_variant_node = int(round(max(1, graph.get_node_allele_frequency(variant_node) * n_haplotypes)))
+            haplotypes_on_variant_node = set(random.sample(haplotype_ids, n_haplotypes_on_variant_node))
+
+            for haplotype in haplotype_ids:
+                flat_haplotypes.append(haplotype)
+                if haplotype in haplotypes_on_variant_node:
+                    flat_nodes.append(variant_node)
+                else:
+                    flat_nodes.append(reference_node)
+
+            """
             # Give variant node to current haplotype
             flat_haplotypes.append(current_haplotype % n_haplotypes)
             flat_nodes.append(variant_node)
@@ -132,6 +147,7 @@ class HaplotypeToNodes:
                     flat_nodes.append(reference_node)
 
             current_haplotype += 1
+            """
 
         return cls.from_flat_haplotypes_and_nodes(flat_haplotypes, flat_nodes)
 
