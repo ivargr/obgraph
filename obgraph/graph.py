@@ -365,25 +365,6 @@ class Graph:
             if len([n for n in next_from_snp_node if n in self.get_edges(potential_next)]) > 0:
                 return node, potential_next
 
-        # Try to find next node that matches read base
-        """
-        for potential_next in self.get_edges(prev_node):
-            if potential_next == node:
-                continue
-
-            if self.get_node_size(potential_next) == 0:
-                continue  # this is an empty insertion/deletion node
-
-            node_seq = self.get_node_sequence(potential_next)[0]
-            if node_seq.lower() == variant_bases.lower():
-                # Also require that this node shares next node with our ref snp node, if not this could be a false match against an indel node
-                next_from_snp_node = self.get_edges(node)
-                #assert len(next_from_snp_node), "SNP node has multiple next? Might be posible, not supported now"
-                #logging.info("Checking potential next %d. Has edges %s" % (potential_next, self.get_edges(potential_next)))
-                if len([n for n in next_from_snp_node if n in self.get_edges(potential_next)]) > 0:
-                    return node, potential_next
-        """
-
         logging.error("Could not parse substitution at offset %d with bases %s" % (ref_offset, variant_bases))
         logging.error("Next nodes from snp node: %d" % next_from_snp_node)
         raise Exception("Parseerrror")
@@ -494,18 +475,17 @@ class Graph:
 
         return (insertion_node, variant_node)
 
-    def get_variant_nodes(self, variant, chromosome=1):
+    def get_variant_nodes(self, variant):
         if variant.type == "SNP":
-            return self.get_snp_nodes(variant.position-1, variant.variant_sequence, chromosome)
+            return self.get_snp_nodes(variant.position-1, variant.variant_sequence, variant.chromosome)
         elif variant.type == "DELETION":
-            return self.get_deletion_nodes(variant.position-1, len(variant.ref_sequence)-1, chromosome)
+            return self.get_deletion_nodes(variant.position-1, len(variant.ref_sequence)-1, variant.chromosome)
         elif variant.type == "INSERTION":
-            return self.get_insertion_nodes(variant, chromosome)
+            return self.get_insertion_nodes(variant, variant.chromosome)
 
         raise Exception("Invalid variant %s. Has no type set." % variant)
 
-    def set_allele_frequencies_from_vcf(self, vcf_file_name, chromosome=1):
-        assert chromosome == 1, "Not implemented for other chromosomes than 1"
+    def set_allele_frequencies_from_vcf(self, vcf_file_name):
         logging.info("Reading all variants")
         variants = GenotypeCalls.from_vcf(vcf_file_name)
 
