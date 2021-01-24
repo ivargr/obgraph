@@ -112,8 +112,8 @@ class GraphConstructor:
             if variant is not None:
                 if variant.type != "DELETION":
                     #logging.info("   Making a variant node %d. Pos before/after: %d/%d. Variant node sequence: %s" % (
-                        self._current_node_id, variant.get_reference_position_before_variant(),
-                        variant.get_reference_position_after_variant(), variant.get_variant_sequence()))
+                    #self._current_node_id, variant.get_reference_position_before_variant(),
+                    #variant.get_reference_position_after_variant(), variant.get_variant_sequence()))
                     self._make_node(variant.get_reference_position_before_variant(), variant.get_reference_position_after_variant(), variant.get_variant_sequence())
                 else:
                     #logging.info("Adding deletion info from ref pos %d to ref pos %d" % (variant.get_reference_position_before_variant()+1, variant.get_reference_position_after_variant()))
