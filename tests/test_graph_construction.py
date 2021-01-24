@@ -73,7 +73,8 @@ def test_double_deletion_with_snp_inside_first_deletion():
     variants = GenotypeCalls([VariantGenotype(1, 4, "GAT", "G", type="DELETION"), VariantGenotype(1, 6, "T", "C", type="SNP"), VariantGenotype(1, 6, "TAAA", "T", type="DELETION")])
     constructor = GraphConstructor(reference, variants)
     graph = constructor.get_graph()
-    print(graph)
+    graph_with_dummy_nodes = constructor.get_graph_with_dummy_nodes()
+    print(graph_with_dummy_nodes)
 
 def test_insertion_with_snp_right_before():
     reference = "AAAAAA"
@@ -103,12 +104,14 @@ def test_deletion_with_snp_right_before_and_right_after():
     variants = GenotypeCalls([VariantGenotype(1, 2, "A", "T", type="SNP"), VariantGenotype(1, 2, "AA", "A", type="DELETION"), VariantGenotype(1, 3, "A", "C", type="SNP")])
     constructor = GraphConstructor(reference, variants)
     graph = constructor.get_graph()
+    graph_with_dummy_nodes = constructor.get_graph_with_dummy_nodes()
     print(graph)
+    print(graph_with_dummy_nodes)
 
 #test_single_snp()
 #test_single_deletion()
 #test_single_insertion()
-#test_double_deletion_with_snp_inside_first_deletion()
+test_double_deletion_with_snp_inside_first_deletion()
 #test_insertion_with_snp_right_before_and_right_after()
-test_deletion_with_snp_right_before_and_right_after()
+#test_deletion_with_snp_right_before_and_right_after()
 

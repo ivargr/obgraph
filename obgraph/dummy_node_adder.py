@@ -14,9 +14,12 @@ class DummyNodeAdder:
         self._n_variants_failed = 0
         self._n_variants_fixed = 0
 
-    def create_new_graph_with_dummy_nodes(self):
-        logging.info("Creating a mutable graph that can be changed")
-        self.mutable_graph = self.graph.to_mutable_graph()
+    def create_new_graph_with_dummy_nodes(self, use_mutable_graph=None):
+        if use_mutable_graph is None:
+            logging.info("Creating a mutable graph that can be changed")
+            self.mutable_graph = self.graph.to_mutable_graph()
+        else:
+            self.mutable_graph = use_mutable_graph
 
         logging.info("Adding dummy nodes")
         for i, variant in enumerate(self.variants):

@@ -3,7 +3,7 @@ import logging
 
 
 class MutableGraph:
-    def __init__(self, nodes, node_sequences, edges, linear_ref_nodes=None, node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None):
+    def __init__(self, nodes={}, node_sequences={}, edges={}, linear_ref_nodes=None, node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None):
         self.nodes = nodes
         self.node_sequences = node_sequences
         self.edges = edges
@@ -60,9 +60,12 @@ class MutableGraph:
 
         self.reverse_edges[to_node].append(from_node)
 
-    def add_node(self, id, sequence=""):
+    def add_node(self, id, sequence="", is_ref_node=False):
         self.nodes[id] = len(sequence)
         self.node_sequences[id] = sequence
+
+        if is_ref_node:
+            self.linear_ref_nodes_set.add(id)
 
     def get_nodes_before(self, node):
         return self.reverse_edges[node]

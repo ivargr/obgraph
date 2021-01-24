@@ -191,6 +191,7 @@ class Graph:
 
     @classmethod
     def from_dicts(cls, node_sequences, edges, linear_ref_nodes):
+        assert linear_ref_nodes is not None
         nodes = list(node_sequences.keys())
         node_sequences = [list(node_sequences[node]) for node in nodes]
         node_sizes = [len(seq) for seq in node_sequences]
@@ -258,6 +259,7 @@ class Graph:
         try:
             ref_node_sizes = nodes[linear_ref_nodes]
         except IndexError:
+            logging.error("Problem with linear ref nodes, which are %s" % linear_ref_nodes)
             print(type(linear_ref_nodes))
             raise
         #print("Ref node sizes: %s"  % ref_node_sizes)

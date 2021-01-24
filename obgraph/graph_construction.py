@@ -1,7 +1,9 @@
 from alignment_free_graph_genotyper.variants import GenotypeCalls
 import logging
 from collections import defaultdict
+from .mutable_graph import MutableGraph
 from .graph import Graph
+from .dummy_node_adder import DummyNodeAdder
 import numpy as np
 
 class GraphConstructor:
@@ -24,18 +26,44 @@ class GraphConstructor:
         self._edges_to = []
 
         self._edges_from_ref_pos_to_node = []
-        self._deletions = defaultdict(list)
+        self._deletions = defaultdict(list)  # A lookup from a ref pos to another ref pos representing a deltion
+        self._edges_added = set()
 
+        self._mutable_graph = MutableGraph()
 
         self.make_nodes()
         self.make_edges()
+        self._mutable_graph.linear_ref_nodes = self._reference_nodes
+        self._graph = None
+        self._graph_with_dummy_nodes = None
+        self._graph = self.get_graph()
+        self.add_dummy_nodes()
+
+
 
     def get_graph(self):
-        return Graph.from_flat_nodes_and_edges(np.array(self._node_ids), np.array(self._node_sequences, dtype=object), np.array(self._node_sizes), np.array(self._edges_from), np.array(self._edges_to), np.array(self._reference_nodes), np.array([1]))
+        logging.info("Linear ref nodes are %s" % self._reference_nodes)
+        return Graph.from_flat_nodes_and_edges(np.array(self._node_ids), np.array(self._node_sequences, dtype=object),
+                                               np.array(self._node_sizes), np.array(self._edges_from),
+                                               np.array(self._edges_to), np.array(self._reference_nodes), np.array([1]))
+
+    def get_graph_with_dummy_nodes(self):
+        return self._graph_with_dummy_nodes
+
+
+    def add_dummy_nodes(self):
+        dummy_node_adder = DummyNodeAdder(self._graph, self.variants)
+        new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes(self._mutable_graph)
+        self._graph_with_dummy_nodes = new_graph
 
     def _make_edge(self, from_node, to_node, ref_pos_before_to_node):
+        if (from_node, to_node) in self._edges_added:
+            return
+
         self._edges_from.append(from_node)
         self._edges_to.append(to_node)
+        self._edges_added.add((from_node, to_node))
+        self._mutable_graph.add_edge(from_node, to_node)
 
         # Check if there is a deletion going from start of to_node, if so we should also have an edge past to node
         # Check if ref_pos_after comes in at a deletion, if so also add edges to after deletion
@@ -60,6 +88,9 @@ class GraphConstructor:
         logging.info("         Addding node %d to ref_pos_to_node_after for ref pos %d" % (self._current_node_id, ref_position_before_node))
         self._node_to_ref_pos_after[self._current_node_id].append(ref_position_after_node)
         node_id = self._current_node_id
+
+        self._mutable_graph.add_node(node_id, sequence)
+
         self._current_node_id += 1
         return node_id
 
