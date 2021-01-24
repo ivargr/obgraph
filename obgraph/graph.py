@@ -334,6 +334,7 @@ class Graph:
                         chromosome_start_nodes.append(nodes_in_path[0])
                         path_found = True
 
+                logging.info("Chromosome start nodes are: %s" % chromosome_start_nodes)
 
         node_ids = np.array(node_ids)
         node_sizes = np.array(node_sizes)
@@ -341,6 +342,7 @@ class Graph:
         edges_to = np.array(edges_to)
         linear_ref_nodes = np.array(linear_ref_nodes, dtype=np.uint32)
         chromosome_start_nodes = np.array(chromosome_start_nodes, dtype=np.uint32)
+        logging.info("Chromosome start nodes are: %s" % chromosome_start_nodes)
 
         return cls.from_flat_nodes_and_edges(node_ids, node_sequences, node_sizes, edges_from, edges_to, linear_ref_nodes, chromosome_start_nodes)
 

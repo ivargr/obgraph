@@ -32,7 +32,7 @@ def test_double_deletion_with_snp_inside_first_deletion():
         [1, 2, 4, 6]
     )
 
-    variants = GenotypeCalls([VariantGenotype(4, "GAT", "G", type="DELETION"), VariantGenotype(6, "TAAA", "T", type="DELETION")])
+    variants = GenotypeCalls([VariantGenotype(1, 4, "GAT", "G", type="DELETION"), VariantGenotype(1, 6, "TAAA", "T", type="DELETION")])
     dummy_node_adder = DummyNodeAdder(graph, variants)
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
     print(new_graph)
@@ -81,5 +81,5 @@ def test_complex_case_multiple_equal_paths():
     pass
 
 #test_simple_insertion()
-test_double_deletion_with_snp_inside_first_deletion2()
+test_double_deletion_with_snp_inside_first_deletion()
 #test_insertion_with_multiple_paths()

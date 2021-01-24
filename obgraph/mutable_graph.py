@@ -80,16 +80,6 @@ class MutableGraph:
         for possible_next in next_nodes:
 
             #print("Checking next node %d" % possible_next)
-            """
-            if variant_type == "DELETION" and possible_next not in self.linear_ref_nodes_set:
-                #print("SKipping deletion")
-                #print(self.linear_ref_nodes_set)
-                continue
-            elif variant_type == "INSERTION" and (possible_next in self.linear_ref_nodes_set or self.get_node_size(possible_next) == 0):
-                #print("Skipping insertion")
-                #print(self.linear_ref_nodes_set)
-                continue
-            """
 
             node_size = self.get_node_size(possible_next)
             if node_size == 0 or self.get_node_sequence(possible_next).lower() == sequence[0:node_size].lower():
