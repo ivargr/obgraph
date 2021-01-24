@@ -3,7 +3,7 @@ import logging
 
 
 class MutableGraph:
-    def __init__(self, nodes={}, node_sequences={}, edges={}, linear_ref_nodes=None, node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None):
+    def __init__(self, nodes={}, node_sequences={}, edges={}, linear_ref_nodes=[], node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None):
         self.nodes = nodes
         self.node_sequences = node_sequences
         self.edges = edges
@@ -65,6 +65,7 @@ class MutableGraph:
         self.node_sequences[id] = sequence
 
         if is_ref_node:
+            self.linear_ref_nodes.append(id)
             self.linear_ref_nodes_set.add(id)
 
     def get_nodes_before(self, node):

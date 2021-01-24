@@ -62,7 +62,7 @@ class DummyNodeAdder:
 
         _, possible_inserted_node_paths = self.get_nodes_for_inserted_sequence_at_ref_pos(inserted_sequence, variant.position, variant.type)
 
-        logging.info("Variant %s. Inserted nodes: %s" % (variant, possible_inserted_node_paths))
+        #logging.info("Variant %s. Inserted nodes: %s" % (variant, possible_inserted_node_paths))
 
         did_add = False
         for inserted_nodes in possible_inserted_node_paths:

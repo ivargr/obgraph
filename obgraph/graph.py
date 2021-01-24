@@ -1,3 +1,4 @@
+import itertools
 import json
 import logging
 import re
@@ -192,7 +193,9 @@ class Graph:
     @classmethod
     def from_dicts(cls, node_sequences, edges, linear_ref_nodes):
         assert linear_ref_nodes is not None
+        logging.info("Making graph from dicts")
         nodes = list(node_sequences.keys())
+        logging.info("Making sequences")
         node_sequences = [list(node_sequences[node]) for node in nodes]
         node_sizes = [len(seq) for seq in node_sequences]
         from_nodes = []
@@ -208,13 +211,15 @@ class Graph:
             i += 1
 
         to_nodes_set = set(to_nodes)
+        logging.info("Done preparing data from dicts")
+        logging.info("There are %d node sequences" % len(node_sequences))
         return Graph.from_flat_nodes_and_edges(nodes, node_sequences, node_sizes, np.array(from_nodes), np.array(to_nodes), np.array(linear_ref_nodes), [node for node in nodes if node not in to_nodes_set])
 
     @classmethod
     def from_flat_nodes_and_edges(cls, node_ids, node_sequences, node_sizes, from_nodes, to_nodes, linear_ref_nodes, chromosome_start_nodes):
 
-        logging.info("Asserting linear ref nodes are not empty")
         """
+        logging.info("Asserting linear ref nodes are not empty")
         for i, node in enumerate(node_ids):
             size = node_sizes[i]
             if size == 0 and node in linear_ref_nodes:
@@ -223,15 +228,22 @@ class Graph:
 
 
         max_node = np.max(node_ids)
-        nodes = np.zeros(max_node+1, dtype=np.uint8)
+        nodes = np.zeros(max_node+1, dtype=np.uint32)
         nodes[node_ids] = node_sizes
 
         # Node sequences
+        logging.info("Making node sequences")
         new_node_positions = np.cumsum(node_sizes)
         node_sequence_index = np.zeros(max_node+1, dtype=np.uint64)
         node_sequence_index[node_ids[0]] = 0
         node_sequence_index[node_ids[1:]] = new_node_positions[:-1]
-        node_sequences_array = np.concatenate(node_sequences).astype("<U1")
+        logging.info("Merging sequences into one string, chaining them first")
+        node_sequences = list(itertools.chain.from_iterable(node_sequences))
+        logging.info("Total length of graph sequences: %d" % len(node_sequences))
+        logging.info("Sample: %s" % node_sequences[0:100])
+        logging.info("Done chaining sequences")
+        node_sequences_array = np.array(node_sequences).astype("<U1")
+        logging.info("Done merging sequences")
 
 
         #node_sequences_array = np.zeros(max_node+0, dtype=object)
@@ -239,15 +251,17 @@ class Graph:
         #node_sequences_array = np.array([np.zeros(size, dtype="<U1") for size in nodes])  # Must allocate space
         #node_sequences_array[node_ids] = node_sequences
 
-        #logging.info("Sorting nodes")
+        logging.info("Sorting nodes")
         sorting = np.argsort(from_nodes)
         from_nodes = from_nodes[sorting]
         to_nodes = to_nodes[sorting]
 
+        logging.info("Making node index")
         diffs = np.ediff1d(from_nodes, to_begin=1)
         positions_of_unique_nodes = np.nonzero(diffs)[0]
         unique_nodes = from_nodes[positions_of_unique_nodes]
 
+        logging.info("Making node to edge index")
         node_to_edge_index = np.zeros(max_node+1, dtype=np.uint32)
         node_to_n_edges = np.zeros(max_node+1, dtype=np.uint8)
         node_to_edge_index[unique_nodes] = positions_of_unique_nodes

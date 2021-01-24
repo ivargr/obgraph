@@ -33,19 +33,24 @@ class GraphConstructor:
 
         self.make_nodes()
         self.make_edges()
-        self._mutable_graph.linear_ref_nodes = self._reference_nodes
+        #self._mutable_graph.linear_ref_nodes = self._reference_nodes
         self._graph = None
         self._graph_with_dummy_nodes = None
+        logging.info("Making a graph")
         self._graph = self.get_graph()
+        self._graph.to_file("tmpgraph")
+        logging.info("Adding dummy nodes for indels")
         self.add_dummy_nodes()
 
 
 
     def get_graph(self):
-        logging.info("Linear ref nodes are %s" % self._reference_nodes)
+        return Graph.from_mutable_graph(self._mutable_graph)
+        """
         return Graph.from_flat_nodes_and_edges(np.array(self._node_ids), np.array(self._node_sequences, dtype=object),
                                                np.array(self._node_sizes), np.array(self._edges_from),
                                                np.array(self._edges_to), np.array(self._reference_nodes), np.array([1]))
+        """
 
     def get_graph_with_dummy_nodes(self):
         return self._graph_with_dummy_nodes
@@ -59,6 +64,8 @@ class GraphConstructor:
     def _make_edge(self, from_node, to_node, ref_pos_before_to_node):
         if (from_node, to_node) in self._edges_added:
             return
+
+        assert to_node != from_node, "Trying to make edge from same node to same node %d to %d" % (from_node, to_node)
 
         self._edges_from.append(from_node)
         self._edges_to.append(to_node)
@@ -75,13 +82,13 @@ class GraphConstructor:
 
     def _make_node(self, ref_position_before_node, ref_position_after_node, sequence, is_ref_node=False, is_deletion=False):
         assert sequence != "", "Empty sequence for node"
-        size = len(sequence)
-        self._node_ids.append(self._current_node_id)
-        self._node_sequences.append(np.array(list(sequence)))
-        self._node_sizes.append(size)
+        #size = len(sequence)
+        #self._node_ids.append(self._current_node_id)
+        #self._node_sequences.append(np.array(list(sequence)))
+        #self._node_sizes.append(size)
 
-        if is_ref_node and len(sequence) > 0:  # We never want empty dummy nodes as reference node (by definition)
-            self._reference_nodes.append(self._current_node_id)
+        #if is_ref_node and len(sequence) > 0:  # We never want empty dummy nodes as reference node (by definition)
+        #    self._reference_nodes.append(self._current_node_id)
 
         self._ref_pos_to_node_after[ref_position_before_node].append(self._current_node_id)
         self._ref_pos_to_node_start[ref_position_before_node+1].append(self._current_node_id)
@@ -89,16 +96,22 @@ class GraphConstructor:
         self._node_to_ref_pos_after[self._current_node_id].append(ref_position_after_node)
         node_id = self._current_node_id
 
-        self._mutable_graph.add_node(node_id, sequence)
+        self._mutable_graph.add_node(node_id, sequence, is_ref_node=is_ref_node)
 
         self._current_node_id += 1
         return node_id
 
     def make_nodes(self):
+        logging.info("Making nodes")
         prev_ref_node_end = -1
-        prev_ref_node_id = None
 
+        i = 0
         for breakpoint_position, variant in self.breakpoints:
+            i += 1
+
+            if i % 10000 == 0:
+                logging.info("%d/%d breakpoints processed" % (i, len(self.breakpoints)))
+
             #logging.info("At breakpoint %s, %s" % (breakpoint_position, variant))
             # Always make a ref variant from prev_ref_node_end to this breakpoints
             if breakpoint_position > prev_ref_node_end:
@@ -127,7 +140,12 @@ class GraphConstructor:
         #logging.info("Ref pos to node after: %s" % self._ref_pos_to_node_after)
         #logging.info("Ref pos to node start: %s" % self._ref_pos_to_node_start)
         #logging.info("Node to ref pos after: %s" % self._node_to_ref_pos_after)
+        logging.info("Adding edges")
+        i = 0
         for from_node, ref_positions_after in self._node_to_ref_pos_after.items():
+            if i % 10000 == 0:
+                logging.info("%d from nodes processed" % i)
+            i += 1
             for ref_pos_after in ref_positions_after:
                 # Find all nodes where the ref pos before ref_pos_after goes to the node
                 for to_node in self._ref_pos_to_node_after[ref_pos_after-1]:
@@ -150,5 +168,6 @@ class GraphConstructor:
 
         logging.info("Sorting breakpoints")
         self.breakpoints = sorted(self.breakpoints, key=lambda b: b[0])
+        logging.info("Done sorting breakpoints")
 
         #logging.info("Breakpoints: %s" % self.breakpoints)

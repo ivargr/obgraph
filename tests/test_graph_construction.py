@@ -73,6 +73,8 @@ def test_double_deletion_with_snp_inside_first_deletion():
     variants = GenotypeCalls([VariantGenotype(1, 4, "GAT", "G", type="DELETION"), VariantGenotype(1, 6, "T", "C", type="SNP"), VariantGenotype(1, 6, "TAAA", "T", type="DELETION")])
     constructor = GraphConstructor(reference, variants)
     graph = constructor.get_graph()
+    print(graph.get_node_at_ref_offset(0))
+    print(graph.get_node_at_ref_offset(1))
     graph_with_dummy_nodes = constructor.get_graph_with_dummy_nodes()
     print(graph_with_dummy_nodes)
 

@@ -9,6 +9,8 @@ from .haplotype_nodes import HaplotypeToNodes, NodeToHaplotypes
 from .dummy_node_adder import DummyNodeAdder
 from .haplotype_nodes import NodeToHaplotypes
 from .genotype_matrix import GenotypeMatrix, GenotypeMatrixAnalyser, GenotypeFrequencies
+from pyfaidx import Fasta
+from .graph_construction import GraphConstructor
 
 from . import cython_traversing
 
@@ -17,9 +19,19 @@ from . import cython_traversing
 import time
 
 def make(args):
-    logging.info("Will create from files %s" % args.vg_json_files)
-    graph = Graph.from_vg_json_files(args.vg_json_files)
-    graph.to_file(args.out_file_name)
+    if args.vcf is not None:
+        logging.info("Will create from vcf file")
+        reference = Fasta(args.reference_fasta_file)
+        variants = GenotypeCalls.from_vcf(args.vcf)
+        ref_sequence = str(reference[args.chromosome])
+
+        constructor = GraphConstructor(ref_sequence, variants)
+        graph = constructor.get_graph_with_dummy_nodes()
+        graph.to_file(args.out_file_name)
+    else:
+        logging.info("Will create from files %s" % args.vg_json_files)
+        graph = Graph.from_vg_json_files(args.vg_json_files)
+        graph.to_file(args.out_file_name)
 
 def add_indel_nodes(args):
     graph = Graph.from_file(args.graph_file_name)
@@ -62,9 +74,11 @@ def run_argument_parser(args):
 
     subparsers = parser.add_subparsers()
     subparser = subparsers.add_parser("make")
-
     subparser.add_argument("-o", "--out_file_name", required=True)
-    subparser.add_argument("-j", "--vg-json-files", nargs='+', required=True)
+    subparser.add_argument("-j", "--vg-json-files", nargs='+', required=False)
+    subparser.add_argument("-v", "--vcf", required=False)
+    subparser.add_argument("-r", "--reference_fasta_file", required=False)
+    subparser.add_argument("-c", "--chromosome", required=False)
     subparser.set_defaults(func=make)
 
     subparser = subparsers.add_parser("add_indel_nodes2")
@@ -179,6 +193,22 @@ def run_argument_parser(args):
     subparser.add_argument("-v", "--vcf-file-name", required=True)
     subparser.add_argument("-n", "--n-haplotypes", type=int, required=False, default=10)
     subparser.set_defaults(func=make_random_haplotypes)
+
+
+    def validate_graph(args):
+        variants = GenotypeCalls.from_vcf(args.vcf)
+        graph = Graph.from_file(args.graph)
+
+        for i, variant in enumerate(variants):
+            if i % 1000 == 0:
+                logging.info("%d variants processed" % i)
+
+            ref_node, var_node = graph.get_variant_nodes(variant)
+
+    subparser = subparsers.add_parser("validate_graph")
+    subparser.add_argument("-g", "--graph", required=True)
+    subparser.add_argument("-v", "--vcf", required=True)
+    subparser.set_defaults(func=validate_graph)
 
 
     if len(args) == 0:
