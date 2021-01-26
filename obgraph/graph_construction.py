@@ -38,7 +38,7 @@ class GraphConstructor:
         self._graph_with_dummy_nodes = None
         logging.info("Making a graph")
         self._graph = self.get_graph()
-        self._graph.to_file("tmpgraph")
+        #self._graph.to_file("tmpgraph")
         logging.info("Adding dummy nodes for indels")
         self.add_dummy_nodes()
 

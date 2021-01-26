@@ -110,10 +110,33 @@ def test_deletion_with_snp_right_before_and_right_after():
     print(graph)
     print(graph_with_dummy_nodes)
 
+
+def test_messy_graph():
+    reference = "GCATATTTT"
+    variants = GenotypeCalls(
+        [
+            VariantGenotype(1, 2, "CAT", "C", type="DELETION"),
+            VariantGenotype(1, 3, "A", "G", type="SNP"),
+            VariantGenotype(1, 4, "TA", "T", type="DELETION"),
+            VariantGenotype(1, 5, "A", "AT", type="INSERTION"),
+        ]
+    )
+
+    constructor = GraphConstructor(reference, variants)
+    graph = constructor.get_graph()
+    print(graph)
+    print(constructor.get_graph_with_dummy_nodes())
+
+    ref, var = graph.get_variant_nodes(variants[2])
+    assert ref == 5
+    assert var == 11
+
+
 #test_single_snp()
 #test_single_deletion()
 #test_single_insertion()
-test_double_deletion_with_snp_inside_first_deletion()
+#test_double_deletion_with_snp_inside_first_deletion()
 #test_insertion_with_snp_right_before_and_right_after()
 #test_deletion_with_snp_right_before_and_right_after()
+test_messy_graph()
 

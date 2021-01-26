@@ -11,6 +11,7 @@ from .haplotype_nodes import NodeToHaplotypes
 from .genotype_matrix import GenotypeMatrix, GenotypeMatrixAnalyser, GenotypeFrequencies
 from pyfaidx import Fasta
 from .graph_construction import GraphConstructor
+from .graph_merger import merge_graphs
 
 from . import cython_traversing
 
@@ -18,12 +19,30 @@ from . import cython_traversing
 
 import time
 
+def merge_graphs_command(args):
+    graphs = [Graph.from_file(graph) for graph in args.graphs]
+    logging.info("Done reading graphs")
+
+    merged_graph = merge_graphs(graphs)
+    merged_graph.to_file(args.out_file_name)
+
+
 def make(args):
     if args.vcf is not None:
         logging.info("Will create from vcf file")
         reference = Fasta(args.reference_fasta_file)
-        variants = GenotypeCalls.from_vcf(args.vcf)
+
+        chromosome = args.chromosome
+        numeric_chromosome = chromosome
+        if chromosome == "X":
+            numeric_chromosome = "23"
+        elif chromosome == "Y":
+            numeric_chromosome = "24"
+
+        variants = GenotypeCalls.from_vcf(args.vcf, limit_to_chromosome=numeric_chromosome)
         ref_sequence = str(reference[args.chromosome])
+        logging.info("Extracted sequence for chromosome %s. Length is: %d" % (chromosome, len(ref_sequence)))
+        logging.info("There are %d variants in chromosome" % len(variants))
 
         constructor = GraphConstructor(ref_sequence, variants)
         graph = constructor.get_graph_with_dummy_nodes()
@@ -48,7 +67,8 @@ def add_indel_nodes2(args):
 def add_allele_frequencies(args):
     logging.info("Reading graph")
     graph = Graph.from_file(args.graph_file_name)
-    graph.set_allele_frequencies_from_vcf(args.vcf_file_name)
+    variants = GenotypeCalls.from_vcf(args.vcf_file_name, limit_to_chromosome=args.chromosome, skip_index=True)
+    graph.set_allele_frequencies_from_variants(variants, use_chromosome=1)  # Use chromosome 1 because we always assume this is a single-chromosome graph
     graph.to_file(args.graph_file_name)
     logging.info("Wrote modified graph to the same file %s" % args.graph_file_name)
 
@@ -90,6 +110,7 @@ def run_argument_parser(args):
     subparser = subparsers.add_parser("add_allele_frequencies")
     subparser.add_argument("-g", "--graph-file-name", required=True)
     subparser.add_argument("-v", "--vcf-file-name", required=True)
+    subparser.add_argument("-c", "--chromosome", default="1", required=False, help="If vcf contains multiple chromsomes, use this to limit to the chromosome that the graph is made from")
     subparser.set_defaults(func=add_allele_frequencies)
 
     subparser = subparsers.add_parser("make_haplotype_to_nodes")
@@ -210,6 +231,11 @@ def run_argument_parser(args):
     subparser.add_argument("-v", "--vcf", required=True)
     subparser.set_defaults(func=validate_graph)
 
+
+    subparser = subparsers.add_parser("merge_graphs")
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.add_argument("-g", "--graphs", nargs="+", required=True)
+    subparser.set_defaults(func=merge_graphs_command)
 
     if len(args) == 0:
         parser.print_help()

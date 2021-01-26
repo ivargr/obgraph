@@ -13,11 +13,11 @@ class VariantNotFoundException(Exception):
 class Graph:
     properties = {
         "nodes", "node_to_sequence_index", "node_sequences", "node_to_edge_index", "node_to_n_edges", "edges",
-        "node_to_ref_offset", "ref_offset_to_node", "chromosome_start_nodes"
+        "node_to_ref_offset", "ref_offset_to_node", "chromosome_start_nodes", "linear_ref_nodes_index", "allele_frequencies"
     }
 
     def __init__(self, nodes=None, node_to_sequence_index=None, node_sequences=None, node_to_edge_index=None, node_to_n_edges=None, edges=None,
-                 node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None):
+                 node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None, linear_ref_nodes_index=None):
         self.nodes = nodes
         self.node_to_sequence_index = node_to_sequence_index
         self.node_sequences = node_sequences
@@ -29,6 +29,14 @@ class Graph:
         self._linear_ref_nodes_cache = None
         self.chromosome_start_nodes = chromosome_start_nodes
         self.allele_frequencies = allele_frequencies
+
+        if self.nodes is not None and linear_ref_nodes_index is None:
+            logging.info("Makng a linear ref lookup, since it is not provided")
+            self.linear_ref_nodes_index = np.zeros(len(self.nodes), dtype=np.uint8)
+            self.linear_ref_nodes_index[np.array(list(self.linear_ref_nodes()))] = 1
+            logging.info("Done making linear ref nodes index")
+        else:
+            self.linear_ref_nodes_index = linear_ref_nodes_index
 
     def node_has_edges(self, node, edges):
         e = self.get_edges(node)
@@ -68,7 +76,13 @@ class Graph:
         return self.nodes[node]
 
     def get_node_allele_frequency(self, node):
+        if self.allele_frequencies is None:
+            return 1.0
         return self.allele_frequencies[node]
+
+    def get_node_subsequence(self, node, start, end):
+        index_position = self.node_to_sequence_index[node]
+        return ''.join(self.node_sequences[int(index_position+start):int(index_position+end)])
 
     def get_node_sequence(self, node):
         index_position = self.node_to_sequence_index[node]
@@ -120,11 +134,20 @@ class Graph:
             self._linear_ref_nodes_cache = nodes
             return nodes
 
+    def is_linear_ref_node(self, node):
+        if self.linear_ref_nodes_index[node] != 0:
+            return True
+        return False
+
     def linear_ref_length(self):
         return len(self.ref_offset_to_node)
 
     def get_node_at_ref_offset(self, ref_offset):
-        return self.ref_offset_to_node[ref_offset]
+        try:
+            return self.ref_offset_to_node[ref_offset]
+        except IndexError:
+            logging.error("Invalid ref offset %s" % str(ref_offset))
+            raise
 
     def get_ref_offset_at_node(self, node):
         return self.node_to_ref_offset[node]
@@ -148,7 +171,8 @@ class Graph:
                  node_to_ref_offset=self.node_to_ref_offset,
                  ref_offset_to_node=self.ref_offset_to_node,
                  chromosome_start_nodes=self.chromosome_start_nodes,
-                 allele_frequencies=allele_frequencies
+                 allele_frequencies=allele_frequencies,
+                 linear_ref_nodes_index=self.linear_ref_nodes_index
                  )
 
         logging.info("Saved to file %s" % file_name)
@@ -156,10 +180,18 @@ class Graph:
     @classmethod
     def from_file(cls, file_name):
         logging.info("Reading file from %s" % file_name)
-        data = np.load(file_name)
+        try:
+            data = np.load(file_name)
+        except FileNotFoundError:
+            data = np.load(file_name + ".npz")
+
         allele_frequencies = None
         if "allele_frequencies" in data:
             allele_frequencies = data["allele_frequencies"]
+
+        linear_ref_nodes_index = None
+        if "linear_ref_nodes_index" in data:
+            linear_ref_nodes_index = data["linear_ref_nodes_index"]
 
         return cls(data["nodes"],
                    data["node_to_sequence_index"],
@@ -170,7 +202,8 @@ class Graph:
                    data["node_to_ref_offset"],
                    data["ref_offset_to_node"],
                    data["chromosome_start_nodes"],
-                   allele_frequencies)
+                   allele_frequencies,
+                   linear_ref_nodes_index)
 
 
     def get_flat_graph(self):
@@ -217,6 +250,7 @@ class Graph:
 
     @classmethod
     def from_flat_nodes_and_edges(cls, node_ids, node_sequences, node_sizes, from_nodes, to_nodes, linear_ref_nodes, chromosome_start_nodes):
+        logging.info("Chromosome start nodes are: %s" % chromosome_start_nodes)
 
         """
         logging.info("Asserting linear ref nodes are not empty")
@@ -240,7 +274,6 @@ class Graph:
         logging.info("Merging sequences into one string, chaining them first")
         node_sequences = list(itertools.chain.from_iterable(node_sequences))
         logging.info("Total length of graph sequences: %d" % len(node_sequences))
-        logging.info("Sample: %s" % node_sequences[0:100])
         logging.info("Done chaining sequences")
         node_sequences_array = np.array(node_sequences).astype("<U1")
         logging.info("Done merging sequences")
@@ -387,8 +420,9 @@ class Graph:
         logging.error("Next nodes from snp node: %d" % next_from_snp_node)
         raise Exception("Parseerrror")
 
-    def get_deletion_nodes(self, ref_offset, deletion_length, chromosome=1):
+    def get_deletion_nodes(self, ref_offset, deletion_length, deleted_sequence, chromosome=1):
         ref_offset += 1
+        # Node is the reference node that is deleted (the first one if there are multiple)
         node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
         node_offset = self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
         #logging.info("Processing deletion at ref pos %d with size %d. Node inside deletion: %d" % (ref_offset, deletion_length, node))
@@ -419,25 +453,33 @@ class Graph:
         #debug = [(node, self.get_edges(node), self.get_node_size(node)) for node in self.get_edges(prev_node)]
         #logging.info("%s" % debug)
 
+
+
+
         if len(deletion_nodes) != 1:
 
             # There can be more than one deletion node if there is an insertion right after a deletion
             if len(deletion_nodes) > 1:
-                # Limit to only those nodes that go out
+                # If there are more than 1 deletion node, we find all paths that matches the deleted sequence, and try to find the deletion node that starts before and ends after this path
+                one_path, possible_deleted_paths = self.find_nodes_from_node_that_matches_sequence(prev_node, deleted_sequence, [], [])
+                assert len(one_path) >  0 and len(possible_deleted_paths) > 0, "Found no paths from node %d that matches the deleted sequence %s" % (prev_node, deleted_sequence)
                 deletion_nodes_orig = deletion_nodes.copy()
-                deletion_nodes = [n for n in deletion_nodes if n in self.get_edges(node)]
+
+                #print(possible_deleted_paths)
+                deletion_nodes = [n for n in deletion_nodes if len([path for path in possible_deleted_paths if len([edge_from_deletion_node for edge_from_deletion_node in self.get_edges(n) if edge_from_deletion_node in self.get_edges(path[-1])]) > 0]) > 0]
+
                 if len(deletion_nodes) == 0:
-                    logging.warning("Error on deletion at pos %s. Deletion nodes: %s. Orig deletion nodes: %s. Edges going out: %s" % (ref_offset, deletion_nodes, deletion_nodes_orig, self.get_edges(node)))
+                    logging.warning("Error on deletion at pos %s. Node: %d. Deletion nodes: %s. Orig deletion nodes: %s. Edges going out: %s" % (ref_offset, node, deletion_nodes, deletion_nodes_orig, self.get_edges(node)))
+                    logging.error("Could not find any nodes among possible deletion nodes %s that wrapped around any of the paths %s" % (deletion_nodes_orig, possible_deleted_paths))
                     raise VariantNotFoundException("Deletion not found")
-
-
-                logging.warning("Deletion at ref offset %s has multiple emppty nodes going out from %d" % (ref_offset, prev_node))
-                if deletion_nodes[0] not in self.get_edges(node):
-                    logging.warning("Error on deletion. Deletion nodes: %s. Edges going out: %s" % (deletion_nodes, self.get_edges(node)))
-                    raise VariantNotFoundException("Deletion not found")
-                # Assert that there is an empty node between this deletion node and next ref node
-                # This assertion won't always hold, e.g. if there are two insertions after a deltion, so just skip it
-                #assert len([n for n in self.get_edges(deletion_nodes[0]) if next_ref_node in self.get_edges(n) and self.get_node_size(n) == 0]), "There is more than one deletion node, and the next node
+                elif len(deletion_nodes) > 1:
+                    logging.warning("Deletion at ref offset %s has multiple empty nodes going out from %d: %s. They all wrap around a deleted path in %s" % (ref_offset, prev_node, deletion_nodes, possible_deleted_paths))
+                    if deletion_nodes[0] not in self.get_edges(node):
+                        logging.warning("Error on deletion. Deletion nodes: %s. Edges going out: %s" % (deletion_nodes, self.get_edges(node)))
+                        raise VariantNotFoundException("Deletion not found")
+                    # Assert that there is an empty node between this deletion node and next ref node
+                    # This assertion won't always hold, e.g. if there are two insertions after a deltion, so just skip it
+                    #assert len([n for n in self.get_edges(deletion_nodes[0]) if next_ref_node in self.get_edges(n) and self.get_node_size(n) == 0]), "There is more than one deletion node, and the next node
             else:
                 logging.warning("Could not find deletion at ref offset %d in graph" % ref_offset)
                 logging.warning("There should be only one deletion node between %d and %d for variant at ref pos %d. There are %d. Edges out from %d are: %s. Edges out from %d are %s" % (prev_node, next_ref_node, ref_offset, len(deletion_nodes), prev_node, self.get_edges(prev_node), node, self.get_edges(node)))
@@ -466,7 +508,8 @@ class Graph:
         next_ref_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
         variant_node = None
         for potential_next in self.get_edges(node):
-            if potential_next in self.linear_ref_nodes():
+            #if potential_next in self.linear_ref_nodes():
+            if self.is_linear_ref_node(potential_next):
                 continue  # Next should not be in linear ref
 
             #print("Processing insertion at ref offset %d with base %s" % (ref_offset, base))
@@ -475,7 +518,8 @@ class Graph:
             if self.get_node_size(potential_next) == 0:
                 continue  # This is an empty deletion node
 
-            next_bases = self.get_node_sequence(potential_next)[0:insertion_length].upper()
+            #next_bases = self.get_node_sequence(potential_next)[0:insertion_length].upper()
+            next_bases = self.get_node_subsequence(potential_next, 0, insertion_length).upper()
             if next_bases == insertion_sequence.upper():
                 if next_ref_node in self.get_edges(potential_next):
                     variant_node = potential_next
@@ -497,20 +541,20 @@ class Graph:
         if variant.type == "SNP":
             return self.get_snp_nodes(variant.position-1, variant.variant_sequence, variant.chromosome)
         elif variant.type == "DELETION":
-            return self.get_deletion_nodes(variant.position-1, len(variant.ref_sequence)-1, variant.chromosome)
+            return self.get_deletion_nodes(variant.position-1, len(variant.ref_sequence)-1, variant.get_deleted_sequence(), variant.chromosome)
         elif variant.type == "INSERTION":
             return self.get_insertion_nodes(variant, variant.chromosome)
 
         raise Exception("Invalid variant %s. Has no type set." % variant)
 
-    def set_allele_frequencies_from_vcf(self, vcf_file_name):
-        logging.info("Reading all variants")
-        variants = GenotypeCalls.from_vcf(vcf_file_name)
-
+    def set_allele_frequencies_from_variants(self, variants, use_chromosome=None):
         frequencies = np.zeros(len(self.nodes), dtype=np.float16) + 1  # Set all to 1.0 initially
 
         for i, variant in enumerate(variants):
-            if i % 10000 == 0:
+            if use_chromosome is not None:
+                variant.chromosome = use_chromosome
+
+            if i % 1000000 == 0:
                 logging.info("%d variants processed" % i)
             try:
                 reference_node, variant_node = self.get_variant_nodes(variant)
@@ -593,4 +637,40 @@ class Graph:
 
         return reverse_edges
 
+    def convert_chromosome_ref_offset_to_graph_ref_offset(self, chromosome_offset, chromosome):
+        # Add the graph ref offset at this chromosome to the chromosome offset
+        chromosome_position = chromosome - 1
+        return int(self.node_to_ref_offset[self.chromosome_start_nodes[chromosome_position]] + chromosome_offset)
+
+
+    def find_nodes_from_node_that_matches_sequence(self, from_node, sequence, nodes_found, all_paths_found):
+        #logging.info("== Searching from node %d with sequence %s. Variant type %s. Nodes found: %s. All paths found: %s" % (from_node, sequence, variant_type, nodes_found, all_paths_found))
+        if sequence == "":
+            # All of the sequence is used successfully, return
+            all_paths_found.append(nodes_found)
+            #logging.info("   RETURNING. All paths found: %s" % all_paths_found)
+            return nodes_found, all_paths_found
+
+        next_nodes = self.get_edges(from_node)
+        result = (nodes_found, all_paths_found)
+        for possible_next in next_nodes:
+
+            #print("Checking next node %d" % possible_next)
+
+            node_size = self.get_node_size(possible_next)
+            if node_size == 0 or self.get_node_sequence(possible_next).lower() == sequence[0:node_size].lower():
+                # This node is a match, we can continue searching
+                new_sequence = sequence[node_size:]
+                new_nodes_found = nodes_found.copy()
+                new_nodes_found.append(possible_next)
+
+                #print("   Matching sequence. New sequence is now %s" % new_sequence)
+                result = self.find_nodes_from_node_that_matches_sequence(possible_next, new_sequence, new_nodes_found, all_paths_found)
+                if not result:
+                    continue
+            else:
+                #print("   No sequence match")
+                continue
+
+        return result
 

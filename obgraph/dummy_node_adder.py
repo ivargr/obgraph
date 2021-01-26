@@ -62,16 +62,42 @@ class DummyNodeAdder:
 
         _, possible_inserted_node_paths = self.get_nodes_for_inserted_sequence_at_ref_pos(inserted_sequence, variant.position, variant.type)
 
+        #logging.info("===========")
         #logging.info("Variant %s. Inserted nodes: %s" % (variant, possible_inserted_node_paths))
 
         did_add = False
+
+        # If there are more than one path, some of them may be invalid (just by chance same sequence)
+        # We only accespt paths where there is an edge from before the path to after the path
+        if len(possible_inserted_node_paths) > 1:
+            correct_paths = []
+            for possible_path in possible_inserted_node_paths:
+                in_nodes = self.mutable_graph.get_nodes_before(possible_path[0])
+                out_nodes = self.mutable_graph.get_edges(possible_path[-1])
+
+                #logging.info("Path: %s. In nodes: %s. Out nodes: %s" % (possible_path, in_nodes, out_nodes))
+                #logging.info("Edges from in_nodes: %s" % [(n, self.mutable_graph.get_edges(n)) for n in in_nodes])
+                if len([(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes) if to_node in self.mutable_graph.get_edges(from_node)]) > 0:
+                    correct_paths.append(possible_path)
+
+            possible_inserted_node_paths = correct_paths
+
+        if len(possible_inserted_node_paths) == 0:
+            logging.error("Did not find any valid inserted node paths for variant %s" % variant)
+            logging.error("Possible paths are: %s" % possible_inserted_node_paths)
+            raise Exception("Could not parse variatn")
+
         for inserted_nodes in possible_inserted_node_paths:
 
             # Find edges going from any node that goes into the inserted nodes and that ends at any node going out from the end of the inserted nodes
             # These edges are bypassing the inserted nodes
             in_nodes = self.mutable_graph.get_nodes_before(inserted_nodes[0])
             out_nodes = self.mutable_graph.get_edges(inserted_nodes[-1])
-            bypass_edges = [(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes) if to_node in self.mutable_graph.get_edges(from_node)]
+            #logging.info(" Out nodes: %s" % out_nodes)
+            # This rule cannot be used since there might be an insertion right after a deletion that makes to_node not to be in edges from from_node
+            # bypass_edges = [(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes) if to_node in self.mutable_graph.get_edges(from_node)]
+
+            bypass_edges = [(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes)]
             if len(bypass_edges) == 0:
                 #logging.warning("Found no edges bypassing the inserted nodes %s. Nodes before are %s, nodes after are %s" % (inserted_nodes, in_nodes, out_nodes))
                 #logging.warning("Variant is %s" % variant)
@@ -92,7 +118,8 @@ class DummyNodeAdder:
 
         # Remove all edges
         for from_node, to_node in edges:
-            self.mutable_graph.remove_edge(from_node, to_node)
+            if to_node in self.mutable_graph.get_edges(from_node):
+                self.mutable_graph.remove_edge(from_node, to_node)
 
         # For all unique from_nodes add an edge to the dummy node
         for from_node in set((from_node for from_node, to_node in edges)):
