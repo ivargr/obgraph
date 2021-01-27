@@ -39,7 +39,6 @@ class GraphConstructor:
         self._graph_with_dummy_nodes = None
         logging.info("Making a graph")
         self._graph = self.get_graph()
-        print(self._graph)
         self._graph.to_file("tmpgraph")
         logging.info("Wrote a tmpgraph")
         logging.info("Adding dummy nodes for indels")
@@ -65,7 +64,6 @@ class GraphConstructor:
         self._graph_with_dummy_nodes = new_graph
 
     def _make_edge(self, from_node, to_node, ref_pos_before_to_node):
-        logging.info("Eges now: %s" % self._mutable_graph.edges)
         if (from_node, to_node) in self._edges_added:
             return
 
@@ -141,10 +139,10 @@ class GraphConstructor:
         self._make_node(prev_ref_node_end, len(self.reference_sequence), self.reference_sequence[prev_ref_node_end+1:len(self.reference_sequence)], is_ref_node=True)
 
     def make_edges(self):
-        logging.info("Ref pos to node after: %s" % self._ref_pos_to_node_after)
-        logging.info("Ref pos to node start: %s" % self._ref_pos_to_node_start)
-        logging.info("Node to ref pos after: %s" % self._node_to_ref_pos_after)
-        logging.info("Adding edges")
+        #logging.info("Ref pos to node after: %s" % self._ref_pos_to_node_after)
+        #logging.info("Ref pos to node start: %s" % self._ref_pos_to_node_start)
+        #logging.info("Node to ref pos after: %s" % self._node_to_ref_pos_after)
+        #logging.info("Adding edges")
         i = 0
         for from_node, ref_positions_after in self._node_to_ref_pos_after.items():
             if i % 10000 == 0:
@@ -155,7 +153,6 @@ class GraphConstructor:
                 for to_node in self._ref_pos_to_node_after[ref_pos_after-1]:
                     if to_node == from_node:
                         continue
-                    logging.info("Making edge from %d to %d" % (from_node, to_node))
                     self._make_edge(from_node, to_node, ref_pos_after-1)
 
 
