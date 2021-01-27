@@ -8,7 +8,7 @@ def test_simple_insertion():
         [1, 3]
     )
 
-    variants = GenotypeCalls([VariantGenotype(4, "G", "GC", type="INSERTION")])
+    variants = GenotypeCalls([VariantGenotype(1, 4, "G", "GC", type="INSERTION")])
     dummy_node_adder = DummyNodeAdder(graph, variants)
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
 
@@ -37,7 +37,7 @@ def test_double_deletion_with_snp_inside_first_deletion():
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
     print(new_graph)
 
-def test_double_deletion_with_snp_inside_first_deletion2():
+def test_double_deletion_with_snp_inside_first_deletiod_and_false_deletion_path():
 
     repeated_sequence = "AGGTCCCAGGTCCATCT"
     graph = Graph.from_dicts(
@@ -52,10 +52,17 @@ def test_double_deletion_with_snp_inside_first_deletion2():
         [1, 2, 3, 5, 6]
     )
 
-    variants = GenotypeCalls([VariantGenotype(4, "TAGGTCCC", "T", type="DELETION"), VariantGenotype(11, "CAGGTCCCAGGTCCATCT", "C", type="DELETION")])
+    variants = GenotypeCalls([VariantGenotype(1, 4, "TAGGTCCC", "T", type="DELETION"), VariantGenotype(1, 11, "CAGGTCCCAGGTCCATCT", "C", type="DELETION")])
     dummy_node_adder = DummyNodeAdder(graph, variants)
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
+
     print(new_graph)
+    assert list(new_graph.get_edges(1)) == [2, 8]
+    assert list(new_graph.get_edges(2)) == [3, 4]
+    assert list(new_graph.get_edges(3)) == [5, 9]
+    assert list(new_graph.get_edges(4)) == [5, 9]
+    assert list(new_graph.get_edges(9)) == [6]
+    assert list(new_graph.get_edges(8)) == [5, 9]
 
 def test_insertion_with_multiple_paths():
 
@@ -65,15 +72,17 @@ def test_insertion_with_multiple_paths():
             1: [2, 3],
             2: [3],
             3: [4, 5],
-            4: [4, 6],
+            4: [6],
             5: [6]
         },
         [1, 3, 5, 6]
     )
 
-    variants = GenotypeCalls([VariantGenotype(4, "G", "GGAGT", type="INSERTION")])
+    variants = GenotypeCalls([VariantGenotype(1, 4, "G", "GGAGT", type="INSERTION")])
     dummy_node_adder = DummyNodeAdder(graph, variants)
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
+    assert list(new_graph.get_edges(1)) == [2, 8]
+    assert list(new_graph.get_edges(8)) == [3]
     print(new_graph)
 
 
@@ -110,10 +119,77 @@ def test_tricky_case_nested_deletions():
     assert list(new_graph.get_edges(11)) == [6]
     assert list(new_graph.get_edges(12)) == [6]
 
-def test_complex_case_multiple_equal_paths():
-    pass
 
+
+def test_overlapping_deletions():
+    graph = Graph.from_dicts(
+        {1: "AA", 2: "TCTG", 3: "TCT", 4: "G", 5: "A", 6: "GG"},
+        {
+            1: [2, 3],
+            2: [3, 6],
+            3: [4, 5],
+            4: [6],
+            5: [6]
+        },
+        [1, 2, 3, 5, 6]
+    )
+
+    variants = GenotypeCalls(
+        [
+            VariantGenotype(1, 2, "ATCTG", "A", type="DELETION"),
+            VariantGenotype(1, 6, "GTCTA", "T", type="DELETION"),
+            VariantGenotype(1, 10, "A", "G", type="SNP")
+        ]
+    )
+    dummy_node_adder = DummyNodeAdder(graph, variants)
+    new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
+
+    assert list(new_graph.get_edges(1)) == [2, 8]
+    assert list(new_graph.get_edges(8)) == [3, 9]
+    assert list(new_graph.get_edges(2)) == [3, 9]
+    assert list(new_graph.get_edges(9)) == [6]
+
+    ref_node, var_node = new_graph.get_variant_nodes(variants[1])
+    assert ref_node == 3
+    assert var_node == 9
+    print(new_graph)
+
+
+
+def test_insertion_with_identical_false_path():
+    graph = Graph.from_dicts(
+        {1: "AA", 2: "TCTG", 3: "TCTG", 4: "GG"},
+        {
+            1: [2, 3],
+            2: [3],
+            3: [4],
+        },
+        [1, 3, 4]
+    )
+
+    variants = GenotypeCalls(
+        [
+            VariantGenotype(1, 2, "A", "ATCTG", type="INSERTION"),
+        ]
+    )
+    dummy_node_adder = DummyNodeAdder(graph, variants)
+    new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
+    print(new_graph)
+
+    assert list(new_graph.get_edges(1)) == [2, 6]
+    assert list(new_graph.get_edges(6)) == [3]
+    assert list(new_graph.get_edges(2)) == [3]
+
+    ref_node, var_node = new_graph.get_variant_nodes(variants[0])
+    assert ref_node == 6
+    assert var_node == 2
+
+
+test_double_deletion_with_snp_inside_first_deletiod_and_false_deletion_path()
+test_double_deletion_with_snp_inside_first_deletion()
+test_insertion_with_identical_false_path()
+test_simple_insertion()
+test_overlapping_deletions()
 test_tricky_case_nested_deletions()
-#test_simple_insertion()
-#test_double_deletion_with_snp_inside_first_deletion()
-#test_insertion_with_multiple_paths()
+test_insertion_with_multiple_paths()
+test_insertion_with_multiple_paths()
