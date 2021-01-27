@@ -23,7 +23,7 @@ class DummyNodeAdder:
 
         logging.info("Adding dummy nodes")
         for i, variant in enumerate(self.variants):
-            if i % 100 == 0:
+            if i % 10000 == 0:
                 logging.info("%d variants processed" % i)
 
             if variant.type == "SNP":
@@ -69,15 +69,26 @@ class DummyNodeAdder:
 
         # If there are more than one path, some of them may be invalid (just by chance same sequence)
         # We only accespt paths where there is an edge from before the path to after the path
+        possible_inserted_node_paths_orig = possible_inserted_node_paths.copy()
         if len(possible_inserted_node_paths) > 1:
             correct_paths = []
             for possible_path in possible_inserted_node_paths:
                 in_nodes = self.mutable_graph.get_nodes_before(possible_path[0])
                 out_nodes = self.mutable_graph.get_edges(possible_path[-1])
 
-                #logging.info("Path: %s. In nodes: %s. Out nodes: %s" % (possible_path, in_nodes, out_nodes))
-                #logging.info("Edges from in_nodes: %s" % [(n, self.mutable_graph.get_edges(n)) for n in in_nodes])
-                if len([(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes) if to_node in self.mutable_graph.get_edges(from_node)]) > 0:
+                if variant.position == 103995331:
+                    logging.info("Path: %s. In nodes: %s. Out nodes: %s" % (possible_path, in_nodes, out_nodes))
+                    logging.info("Edges from in_nodes: %s" % [(n, self.graph.get_edges(n)) for n in in_nodes])
+
+                if len([(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes) if to_node in self.graph.get_edges(from_node)]) > 0:
+
+                    if variant.type == "DELETION":
+                        # If deletion, the last position in the last node on the path must be on the linear reference and match the length of the deleted sequence
+                        deletion_end_pos = variant.position + len(inserted_sequence)
+                        if deletion_end_pos != self.graph.get_ref_offset_at_node(possible_path[-1]) + self.graph.get_node_size(possible_path[-1]):
+                            logging.info("Ignoring deletion path %s because ref pos at end is not correct" % possible_path)
+                            continue
+
                     correct_paths.append(possible_path)
 
             possible_inserted_node_paths = correct_paths
@@ -85,6 +96,7 @@ class DummyNodeAdder:
         if len(possible_inserted_node_paths) == 0:
             logging.error("Did not find any valid inserted node paths for variant %s" % variant)
             logging.error("Possible paths are: %s" % possible_inserted_node_paths)
+            logging.error("Original paths are: %s" % possible_inserted_node_paths_orig)
             raise Exception("Could not parse variatn")
 
         for inserted_nodes in possible_inserted_node_paths:
@@ -97,13 +109,16 @@ class DummyNodeAdder:
             # This rule cannot be used since there might be an insertion right after a deletion that makes to_node not to be in edges from from_node
             # bypass_edges = [(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes) if to_node in self.mutable_graph.get_edges(from_node)]
 
-            bypass_edges = [(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes)]
+            bypass_edges = set([(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes)])
             if len(bypass_edges) == 0:
                 #logging.warning("Found no edges bypassing the inserted nodes %s. Nodes before are %s, nodes after are %s" % (inserted_nodes, in_nodes, out_nodes))
                 #logging.warning("Variant is %s" % variant)
                 continue
 
-            #logging.info("Adding bypass edges: %s" % bypass_edges)
+            if 178112 in inserted_nodes:
+                logging.info("Adding bypass edges: %s" % bypass_edges)
+                logging.info("Inserted node paths are %s" % possible_inserted_node_paths)
+
             self._add_new_dummy_node_for_edges(bypass_edges)
             did_add = True
 

@@ -17,7 +17,7 @@ def test_find_insertion_nodes():
         },
         [1, 3]
     )
-    variant = VariantGenotype(6, "A", "AAA", "", "INSERTION")
+    variant = VariantGenotype(1, 6, "A", "AAA", "", "INSERTION")
 
 
     ref_node, variant_node = g.get_variant_nodes(variant)

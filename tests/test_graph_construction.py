@@ -1,3 +1,5 @@
+import logging
+
 from obgraph.graph_construction import GraphConstructor as GraphConstructor
 from alignment_free_graph_genotyper.variants import GenotypeCalls, VariantGenotype
 
@@ -30,7 +32,19 @@ def test_single_snp():
     assert graph.linear_ref_nodes() == set([1, 3, 4])
 
 
+def test_deletion_with_snp_at_end():
+    reference = "TCTGTCTAGG"
+    variants = GenotypeCalls(
+        [VariantGenotype(1, 4, "GTCTA", "G", type="DELETION"),
+         VariantGenotype(1, 8, "A", "T", type="SNP")]
+    )
+    constructor = GraphConstructor(reference, variants)
+    graph = constructor.get_graph()
+
+    print(graph)
+
 def test_single_deletion():
+    logging.info("\n\nTest single deletion")
     reference = "AATTGG"
 
     variants = GenotypeCalls(
@@ -41,18 +55,16 @@ def test_single_deletion():
     graph = constructor.get_graph()
     print(graph)
 
-    """
-    assert list(graph.get_edges(1)) == [2, 3]
-    assert list(graph.get_edges(2)) == [4]
-    assert list(graph.get_edges(3)) == [4]
 
-    assert graph.get_node_sequence(2) == ""
-    assert graph.get_node_sequence(3) == "TT"
+    assert list(graph.get_edges(1)) == [2, 5]
+    assert list(graph.get_edges(2)) == [3]
+
+    assert graph.get_node_sequence(5) == ""
+    assert graph.get_node_sequence(2) == "TT"
     assert graph.get_node_sequence(1) == "AA"
-    assert graph.get_node_sequence(4) == "GG"
+    assert graph.get_node_sequence(3) == "GG"
 
-    assert graph.linear_ref_nodes() == set([1, 3, 4])
-    """
+    assert graph.linear_ref_nodes() == set([1, 2, 3])
 
 
 def test_single_insertion():
@@ -63,9 +75,12 @@ def test_single_insertion():
     )
 
     constructor = GraphConstructor(reference, variants)
-    graph = constructor.get_graph()
-
+    graph = constructor.get_graph_with_dummy_nodes()
     print(graph)
+
+    assert list(graph.get_edges(1)) == [2, 5]
+    assert list(graph.get_edges(5)) == [3]
+    assert list(graph.get_edges(3)) == []
 
 def test_double_deletion_with_snp_inside_first_deletion():
 
@@ -82,16 +97,19 @@ def test_insertion_with_snp_right_before():
     reference = "AAAAAA"
     variants = GenotypeCalls([VariantGenotype(1, 2, "A", "T", type="SNP"), VariantGenotype(1, 2, "A", "AC", type="INSERTION")])
     constructor = GraphConstructor(reference, variants)
-    graph = constructor.get_graph()
+    graph = constructor.get_graph_with_dummy_nodes()
 
     assert list(graph.get_edges(1)) == [2, 3]
-    assert list(graph.get_edges(2)) == [4, 5]
-    assert list(graph.get_edges(3)) == [4, 5]
-    assert list(graph.get_edges(4)) == [6]
-    assert list(graph.get_edges(5)) == [6]
-    assert graph.get_node_sequence(5) == ""
+    assert list(graph.get_edges(2)) == [4, 7]
+    assert list(graph.get_edges(3)) == [4, 7]
+    assert list(graph.get_edges(4)) == [5]
+    assert list(graph.get_edges(5)) == []
+    assert list(graph.get_edges(7)) == [5]
+    assert graph.get_node_sequence(5) == "AAAA"
+    assert graph.get_node_sequence(7) == ""
     assert graph.get_node_sequence(4) == "C"
-    assert graph.linear_ref_nodes() == set([1, 3, 6])
+    assert graph.get_node_sequence(2) == "T"
+    assert graph.linear_ref_nodes() == set([1, 3, 5])
 
 
 def test_insertion_with_snp_right_before_and_right_after():
@@ -129,14 +147,32 @@ def test_messy_graph():
 
     ref, var = graph.get_variant_nodes(variants[2])
     assert ref == 5
-    assert var == 11
+    assert var == 10
+
+    ref, var = graph.get_variant_nodes(variants[0])
+    assert ref == 3
+    assert var == 9
+
+    ref, var = graph.get_variant_nodes(variants[1])
+    assert ref == 3
+    assert var == 2
+
+    ref, var = graph.get_variant_nodes(variants[3])
+    assert ref == 11
+    assert var == 6
+
+    assert list(graph.get_edges(10)) == [6, 11]
+    assert list(graph.get_edges(11)) == [7]
+    assert list(graph.get_edges(9)) == [5, 10]
 
 
+test_insertion_with_snp_right_before()
 #test_single_snp()
 #test_single_deletion()
 #test_single_insertion()
 #test_double_deletion_with_snp_inside_first_deletion()
 #test_insertion_with_snp_right_before_and_right_after()
 #test_deletion_with_snp_right_before_and_right_after()
-test_messy_graph()
+#test_messy_graph()
+#test_deletion_with_snp_at_end()
 

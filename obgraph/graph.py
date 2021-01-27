@@ -118,6 +118,9 @@ class Graph:
         return self.get_node_at_ref_offset(real_offset)
 
     def get_edges(self, node):
+        if node >= len(self.node_to_edge_index):
+            return []
+
         index = self.node_to_edge_index[node]
         n_edges = self.node_to_n_edges[node]
 
@@ -402,7 +405,7 @@ class Graph:
         assert node_offset == 0
         prev_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset - 1)
 
-        _, possible_snp_nodes = MutableGraph.find_nodes_from_node_that_matches_sequence(self, prev_node, variant_bases, "SNP", [], [])
+        _, possible_snp_nodes = self.find_nodes_from_node_that_matches_sequence(prev_node, variant_bases, [], [])
         assert len(possible_snp_nodes) > 0, "Did not find any possible snp nodes for variant at ref offset %s with variant sequence %s" % (ref_offset, variant_bases)
 
         for possible_snp_node in possible_snp_nodes:

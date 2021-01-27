@@ -3,7 +3,17 @@ import logging
 
 
 class MutableGraph:
-    def __init__(self, nodes={}, node_sequences={}, edges={}, linear_ref_nodes=[], node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None):
+    def __init__(self, nodes=None, node_sequences=None, edges=None, linear_ref_nodes=None, node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None):
+        if nodes is None:
+            nodes = {}
+        if node_sequences is None:
+            node_sequences = {}
+        if edges is None:
+            edges = {}
+        if linear_ref_nodes is None:
+            linear_ref_nodes = []
+
+
         self.nodes = nodes
         self.node_sequences = node_sequences
         self.edges = edges
