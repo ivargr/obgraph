@@ -13,11 +13,12 @@ class VariantNotFoundException(Exception):
 class Graph:
     properties = {
         "nodes", "node_to_sequence_index", "node_sequences", "node_to_edge_index", "node_to_n_edges", "edges",
-        "node_to_ref_offset", "ref_offset_to_node", "chromosome_start_nodes", "linear_ref_nodes_index", "allele_frequencies"
+        "node_to_ref_offset", "ref_offset_to_node", "chromosome_start_nodes", "linear_ref_nodes_index", "allele_frequencies", "numeric_node_sequences"
     }
 
     def __init__(self, nodes=None, node_to_sequence_index=None, node_sequences=None, node_to_edge_index=None, node_to_n_edges=None, edges=None,
-                 node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None, linear_ref_nodes_index=None):
+                 node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None, linear_ref_nodes_index=None,
+                 numeric_node_sequences=None):
         self.nodes = nodes
         self.node_to_sequence_index = node_to_sequence_index
         self.node_sequences = node_sequences
@@ -29,6 +30,7 @@ class Graph:
         self._linear_ref_nodes_cache = None
         self.chromosome_start_nodes = chromosome_start_nodes
         self.allele_frequencies = allele_frequencies
+        self.numeric_node_sequences = numeric_node_sequences
 
         if self.nodes is not None and linear_ref_nodes_index is None:
             logging.info("Makng a linear ref lookup, since it is not provided")
@@ -88,10 +90,45 @@ class Graph:
         index_position = self.node_to_sequence_index[node]
         return ''.join(self.node_sequences[index_position:index_position+self.nodes[node]])
 
+    def get_nodes_sequence_index_positions(self, nodes):
+        # First find the number of indexes we ned
+        sequence_length = np.sum(self.nodes[nodes])
+        indexes = np.zeros(sequence_length, dtype=np.uint64)
+        i = 0
+        for node in nodes:
+            node_size = self.nodes[node]
+            index_position = self.node_to_sequence_index[node]
+            indexes[i:i+node_size] = np.arange(index_position, index_position+node_size)
+            i += self.nodes[node]
+
+        return indexes
+
+    def get_numeric_node_sequences(self, nodes):
+        logging.info("Getting sequence length")
+        sequence_length = np.sum(self.nodes[nodes])
+        numeric_sequence = np.zeros(sequence_length, dtype=np.uint8)
+
+        i = 0
+        for node in nodes:
+            node_size = self.nodes[node]
+            index_position = self.node_to_sequence_index[node]
+            numeric_sequence[i:i + node_size] = self.numeric_node_sequences[index_position:index_position+node_size]
+            i += self.nodes[node]
+
+        return numeric_sequence
+
+    def get_nodes_sequences2(self, nodes):
+        return ''.join(self.node_sequences[self.get_nodes_sequence_index_positions(nodes)])
+
     def get_nodes_sequence(self, nodes):
         sequences = []
+
         for node in nodes:
-            sequences.append(self.get_node_sequence(node))
+            index_position = self.node_to_sequence_index[node]
+            sequences.extend(self.node_sequences[index_position:index_position+self.nodes[node]])
+
+        #for node in nodes:
+        #    sequences.append(self.get_node_sequence(node))
         return ''.join(sequences)
 
     def get_node_offset_at_chromosome_and_chromosome_offset(self, chromosome, offset):
@@ -137,6 +174,17 @@ class Graph:
             self._linear_ref_nodes_cache = nodes
             return nodes
 
+    def is_linear_ref_node_or_linear_ref_dummy_node(self, node):
+        if self.is_linear_ref_node(node):
+            return True
+
+        if self.get_node_size(node) == 0:
+            # is a linear if it has a linear ref node as next node and the previous node on the linear ref from this linear ref node has an edge to node
+            if len([next_node for next_node in self.get_edges(node) if self.is_linear_ref_node(next_node) and node in self.get_edges(self.get_node_at_ref_offset(int(self.get_ref_offset_at_node(next_node)-1)))]) > 0:
+                return True
+
+        return False
+
     def is_linear_ref_node(self, node):
         if self.linear_ref_nodes_index[node] != 0:
             return True
@@ -164,6 +212,11 @@ class Graph:
         allele_frequencies = self.allele_frequencies
         if allele_frequencies is None:
             allele_frequencies = np.zeros(0)
+
+        numeric_node_sequences = self.numeric_node_sequences
+        if numeric_node_sequences is None:
+            numeric_node_sequences = np.zeros(0)
+
         np.savez(file_name,
                  nodes=self.nodes,
                  node_to_sequence_index=self.node_to_sequence_index,
@@ -175,7 +228,8 @@ class Graph:
                  ref_offset_to_node=self.ref_offset_to_node,
                  chromosome_start_nodes=self.chromosome_start_nodes,
                  allele_frequencies=allele_frequencies,
-                 linear_ref_nodes_index=self.linear_ref_nodes_index
+                 linear_ref_nodes_index=self.linear_ref_nodes_index,
+                 numeric_node_sequences=numeric_node_sequences
                  )
 
         logging.info("Saved to file %s" % file_name)
@@ -196,6 +250,10 @@ class Graph:
         if "linear_ref_nodes_index" in data:
             linear_ref_nodes_index = data["linear_ref_nodes_index"]
 
+        numeric_node_sequences = None
+        if "numeric_node_sequences" in data:
+            numeric_node_sequences = data["numeric_node_sequences"]
+
         return cls(data["nodes"],
                    data["node_to_sequence_index"],
                    data["node_sequences"],
@@ -206,7 +264,8 @@ class Graph:
                    data["ref_offset_to_node"],
                    data["chromosome_start_nodes"],
                    allele_frequencies,
-                   linear_ref_nodes_index)
+                   linear_ref_nodes_index,
+                   numeric_node_sequences)
 
 
     def get_flat_graph(self):

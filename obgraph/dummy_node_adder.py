@@ -97,7 +97,7 @@ class DummyNodeAdder:
             logging.error("Did not find any valid inserted node paths for variant %s" % variant)
             logging.error("Possible paths are: %s" % possible_inserted_node_paths)
             logging.error("Original paths are: %s" % possible_inserted_node_paths_orig)
-            raise Exception("Could not parse variatn")
+            raise VariantNotFoundException("Could not parse variatn")
 
         for inserted_nodes in possible_inserted_node_paths:
 

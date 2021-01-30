@@ -10,7 +10,8 @@ from .traversing import traverse_graph_by_following_nodes
 import random
 
 class HaplotypeToNodes:
-    def __init__(self, haplotype_to_index, haplotype_to_n_nodes, nodes):
+    properties = {"_haplotype_to_index", "_haplotype_to_n_nodes", "_nodes"}
+    def __init__(self, haplotype_to_index=None, haplotype_to_n_nodes=None, nodes=None):
         self._haplotype_to_index = haplotype_to_index
         self._haplotype_to_n_nodes = haplotype_to_n_nodes
         self._nodes = nodes
@@ -116,7 +117,7 @@ class HaplotypeToNodes:
         flat_haplotypes = []
         flat_nodes = []
         for i, variant in enumerate(variants):
-            if i % 1000 == 0:
+            if i % 100000 == 0:
                 logging.info("%d variants processed" % i)
 
             try:
@@ -158,7 +159,7 @@ class HaplotypeToNodes:
         flat_nodes = []
         haplotypes = list(range(0, limit_to_n_haplotypes))
         for i, variant in enumerate(variants):
-            if i % 100 == 0 and False:
+            if i % 1000000 == 0:
                 logging.info("%d variants processed" % i)
 
             try:

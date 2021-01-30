@@ -12,12 +12,27 @@ from .genotype_matrix import GenotypeMatrix, GenotypeMatrixAnalyser, GenotypeFre
 from pyfaidx import Fasta
 from .graph_construction import GraphConstructor
 from .graph_merger import merge_graphs
-
+import numpy as np
 from . import cython_traversing
-
+from graph_kmer_index.shared_mem import from_shared_memory, to_shared_memory, SingleSharedArray
+from multiprocessing import Pool
+from alignment_free_graph_genotyper.cython_chain_genotyper import np_letter_sequence_to_numeric
+import time
 #from .cython_traversing import traverse_graph_by_following_nodes
 
 import time
+
+
+def get_numeric_node_sequence_single_thread(interval):
+    from_pos, to_pos = interval
+    start_time = time.time()
+    graph = from_shared_memory(Graph, "graph_shared")
+    numeric_node_sequences = from_shared_memory(SingleSharedArray, "numeric_node_sequences")
+    result = np_letter_sequence_to_numeric(graph.node_sequences[from_pos:to_pos])
+    numeric_node_sequences.array[from_pos:to_pos] = result
+    logging.info("Spent %.3f s on interval" % (time.time()-start_time))
+    return from_pos, to_pos
+
 
 def merge_graphs_command(args):
     graphs = [Graph.from_file(graph) for graph in args.graphs]
@@ -133,31 +148,34 @@ def run_argument_parser(args):
 
     def make_genotype_matrix(args):
         from .genotype_matrix import GenotypeMatrix
-        graph = Graph.from_file(args.graph)
-        variants = GenotypeCalls.from_vcf(args.vcf_file_name, skip_index=True, limit_to_n_lines=None)
+        variants = GenotypeCalls.from_vcf(args.vcf_file_name, skip_index=True, limit_to_n_lines=None, make_generator=True)
 
         if args.node_to_haplotypes is not None:
+            graph = Graph.from_file(args.graph)
             nodes_to_haplotypes = NodeToHaplotypes.from_file(args.node_to_haplotypes)
             matrix = GenotypeMatrix.from_nodes_to_haplotypes_and_variants(nodes_to_haplotypes, variants, graph, args.n_individuals)
         else:
             logging.info("Making genotype matrix directly from vcf")
-            matrix = GenotypeMatrix.from_variants(variants, args.n_individuals)
+            matrix = GenotypeMatrix.from_variants(variants, args.n_individuals, args.n_variants, n_threads=args.n_threads, chunk_size=args.chunk_size)
 
         matrix.to_file(args.out_file_name)
 
     subparser = subparsers.add_parser("make_genotype_matrix")
-    subparser.add_argument("-g", "--graph", required=True)
+    subparser.add_argument("-g", "--graph", required=False)
     subparser.add_argument("-v", "--vcf-file-name", required=True)
     subparser.add_argument("-n", "--n-individuals", type=int, required=True)
-    subparser.add_argument("-N", "--node_to_haplotypes", required=False)
-    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.add_argument("-N", "--node-to-haplotypes", required=False)
+    subparser.add_argument("-o", "--out-file-name", required=True)
+    subparser.add_argument("-m", "--n-variants", required=True, type=int)
+    subparser.add_argument("-t", "--n-threads", required=False, type=int, default=6, help="Number of threads used to fill matrix")
+    subparser.add_argument("-c", "--chunk-size", required=False, type=int, default=10000, help="Number of variants to process in each job")
     subparser.set_defaults(func=make_genotype_matrix)
 
     def analyse_genotype_matrix(args):
 
         matrix = GenotypeMatrix.from_file(args.genotype_matrix)
         analyser = GenotypeMatrixAnalyser(matrix)
-        lookup = analyser.analyse()
+        lookup = analyser.analyse(args.n_threads)
         lookup.to_file(args.out_file_name)
         logging.info("Wrote lookup of most similar genotype to file %s" % args.out_file_name)
 
@@ -165,6 +183,7 @@ def run_argument_parser(args):
     subparser = subparsers.add_parser("analyse_genotype_matrix")
     subparser.add_argument("-G", "--genotype-matrix", required=True)
     subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.add_argument("-t", "--n-threads", required=False, type=int, help="Number of threads to use", default=8)
     subparser.set_defaults(func=analyse_genotype_matrix)
 
     def traverse(args):
@@ -190,13 +209,14 @@ def run_argument_parser(args):
 
     def get_genotype_frequencies(args):
         matrix = GenotypeMatrix.from_file(args.genotype_matrix)
-        frequencies = GenotypeFrequencies.from_genotype_matrix(matrix)
+        frequencies = GenotypeFrequencies.from_genotype_matrix(matrix, args.n_threads)
         frequencies.to_file(args.out_file_name)
         logging.info("Wrote frequencies to file %s" % args.out_file_name)
 
     subparser = subparsers.add_parser("get_genotype_frequencies")
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.add_argument("-g", "--genotype-matrix", required=True)
+    subparser.add_argument("-t", "--n-threads", default=10, type=int, required=False)
     subparser.set_defaults(func=get_genotype_frequencies)
 
     def make_random_haplotypes(args):
@@ -236,6 +256,50 @@ def run_argument_parser(args):
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.add_argument("-g", "--graphs", nargs="+", required=True)
     subparser.set_defaults(func=merge_graphs_command)
+
+    def make_variant_to_nodes(args):
+        from .variant_to_nodes import VariantToNodes
+        graph = Graph.from_file(args.graph)
+        variants = GenotypeCalls.from_vcf(args.vcf)
+        variant_to_nodes = VariantToNodes.from_graph_and_variants(graph, variants)
+        variant_to_nodes.to_file(args.out_file_name)
+        logging.info("Wrote to file %s" % args.out_file_name)
+
+
+    subparser = subparsers.add_parser("make_variant_to_nodes")
+    subparser.add_argument("-g", "--graph", required=True)
+    subparser.add_argument("-v", "--vcf", required=True)
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.set_defaults(func=make_variant_to_nodes)
+
+
+
+    def set_numeric_node_sequences(args):
+        graph = Graph.from_file(args.graph)
+        to_shared_memory(graph, "graph_shared")
+        pool = Pool(args.n_threads)
+
+        numeric_node_sequences = SingleSharedArray(np.zeros(len(graph.node_sequences), dtype=np.uint8))
+        to_shared_memory(numeric_node_sequences, "numeric_node_sequences")
+
+
+        intervals = list([int(i) for i in np.linspace(0, len(graph.node_sequences), args.n_threads+1)])
+        intervals = [(from_pos, to_pos) for from_pos, to_pos in zip(intervals[0:-1], intervals[1:])]
+        logging.info("Intervals: %s" % intervals)
+
+        for from_pos, to_pos in pool.imap(get_numeric_node_sequence_single_thread, intervals):
+            logging.info("Done processing interval %d-%d. Inserting into full array" % (from_pos, to_pos))
+
+        logging.info("Done with all intervals. Saving new graph")
+        numeric_node_sequences = from_shared_memory(SingleSharedArray, "numeric_node_sequences")
+        graph.numeric_node_sequences = numeric_node_sequences.array
+        graph.to_file(args.graph)
+        logging.info("Saved to the same file %s" % args.graph)
+
+    subparser = subparsers.add_parser("set_numeric_node_sequences")
+    subparser.add_argument("-g", "--graph", required=True)
+    subparser.add_argument("-t", "--n-threads", required=False, default=10, type=int)
+    subparser.set_defaults(func=set_numeric_node_sequences)
 
     if len(args) == 0:
         parser.print_help()

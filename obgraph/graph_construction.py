@@ -114,7 +114,7 @@ class GraphConstructor:
             if i % 100000 == 0:
                 logging.info("%d/%d breakpoints processed" % (i, len(self.breakpoints)))
 
-            logging.info("At breakpoint %s, %s" % (breakpoint_position, variant))
+            #logging.info("At breakpoint %s, %s" % (breakpoint_position, variant))
             # Always make a ref variant from prev_ref_node_end to this breakpoints
             if breakpoint_position > prev_ref_node_end:
                 #logging.info("   Making a reference node %d. Pos before/after: %d/%d." % (
@@ -145,8 +145,8 @@ class GraphConstructor:
         #logging.info("Adding edges")
         i = 0
         for from_node, ref_positions_after in self._node_to_ref_pos_after.items():
-            if i % 10000 == 0:
-                logging.info("%d from nodes processed" % i)
+            if i % 500000 == 0:
+                logging.info("%d edge nodes processed" % i)
             i += 1
             for ref_pos_after in ref_positions_after:
                 # Find all nodes where the ref pos before ref_pos_after goes to the node
