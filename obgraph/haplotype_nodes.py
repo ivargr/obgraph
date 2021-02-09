@@ -126,7 +126,8 @@ class HaplotypeToNodes:
                 continue
 
             # Select number of haplotypes on variant node by allele frequency, always minimum 1
-            n_haplotypes_on_variant_node = int(round(max(1, graph.get_node_allele_frequency(variant_node) * n_haplotypes)))
+            # never more than n_haplotypes-1 (guaranteeing min 1 on ref and min 1 on alt)
+            n_haplotypes_on_variant_node = int(round(min(max(1, graph.get_node_allele_frequency(variant_node) * n_haplotypes), n_haplotypes-1)))
             haplotypes_on_variant_node = set(random.sample(haplotype_ids, n_haplotypes_on_variant_node))
 
             for haplotype in haplotype_ids:
