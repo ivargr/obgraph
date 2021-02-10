@@ -1,5 +1,5 @@
 from obgraph import Graph
-from alignment_free_graph_genotyper.analysis import GenotypeCalls, VariantGenotype
+from alignment_free_graph_genotyper.analysis import VcfVariants, VcfVariant
 
 def test_find_insertion_nodes():
     g = Graph.from_dicts(
@@ -17,7 +17,7 @@ def test_find_insertion_nodes():
         },
         [1, 3]
     )
-    variant = VariantGenotype(1, 6, "A", "AAA", "", "INSERTION")
+    variant = VcfVariant(1, 6, "A", "AAA", "", "INSERTION")
 
 
     ref_node, variant_node = g.get_variant_nodes(variant)

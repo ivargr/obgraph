@@ -1,4 +1,4 @@
-from alignment_free_graph_genotyper.variants import GenotypeCalls
+from alignment_free_graph_genotyper.variants import VcfVariants
 import logging
 from collections import defaultdict
 from .mutable_graph import MutableGraph
@@ -7,7 +7,7 @@ from .dummy_node_adder import DummyNodeAdder
 import numpy as np
 
 class GraphConstructor:
-    def __init__(self, reference_sequence, variants: GenotypeCalls):
+    def __init__(self, reference_sequence, variants: VcfVariants):
         self.reference_sequence = reference_sequence
         self.variants = variants
         self.breakpoints = []

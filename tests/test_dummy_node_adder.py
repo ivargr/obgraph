@@ -1,5 +1,5 @@
 from obgraph import Graph, DummyNodeAdder
-from alignment_free_graph_genotyper.variants import GenotypeCalls, VariantGenotype
+from alignment_free_graph_genotyper.variants import VcfVariants, VcfVariant
 
 def test_simple_insertion():
     graph = Graph.from_dicts(
@@ -8,7 +8,7 @@ def test_simple_insertion():
         [1, 3]
     )
 
-    variants = GenotypeCalls([VariantGenotype(1, 4, "G", "GC", type="INSERTION")])
+    variants = VcfVariants([VcfVariant(1, 4, "G", "GC", type="INSERTION")])
     dummy_node_adder = DummyNodeAdder(graph, variants)
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
 
@@ -32,7 +32,7 @@ def test_double_deletion_with_snp_inside_first_deletion():
         [1, 2, 4, 6]
     )
 
-    variants = GenotypeCalls([VariantGenotype(1, 4, "GAT", "G", type="DELETION"), VariantGenotype(1, 6, "TAAA", "T", type="DELETION")])
+    variants = VcfVariants([VcfVariant(1, 4, "GAT", "G", type="DELETION"), VcfVariant(1, 6, "TAAA", "T", type="DELETION")])
     dummy_node_adder = DummyNodeAdder(graph, variants)
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
     print(new_graph)
@@ -52,7 +52,7 @@ def test_double_deletion_with_snp_inside_first_deletiod_and_false_deletion_path(
         [1, 2, 3, 5, 6]
     )
 
-    variants = GenotypeCalls([VariantGenotype(1, 4, "TAGGTCCC", "T", type="DELETION"), VariantGenotype(1, 11, "CAGGTCCCAGGTCCATCT", "C", type="DELETION")])
+    variants = VcfVariants([VcfVariant(1, 4, "TAGGTCCC", "T", type="DELETION"), VcfVariant(1, 11, "CAGGTCCCAGGTCCATCT", "C", type="DELETION")])
     dummy_node_adder = DummyNodeAdder(graph, variants)
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
 
@@ -78,7 +78,7 @@ def test_insertion_with_multiple_paths():
         [1, 3, 5, 6]
     )
 
-    variants = GenotypeCalls([VariantGenotype(1, 4, "G", "GGAGT", type="INSERTION")])
+    variants = VcfVariants([VcfVariant(1, 4, "G", "GGAGT", type="INSERTION")])
     dummy_node_adder = DummyNodeAdder(graph, variants)
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
     assert list(new_graph.get_edges(1)) == [2, 8]
@@ -102,11 +102,11 @@ def test_tricky_case_nested_deletions():
         [1, 2, 3, 5, 6, 8, 9]
     )
 
-    variants = GenotypeCalls(
+    variants = VcfVariants(
         [
-            VariantGenotype(1, 5, "TATAA", "T", type="DELETION"),
-            VariantGenotype(1, 7, "TAA", "T", type="DELETION"),
-            VariantGenotype(1, 5, "A", "T", type="SNP"),
+            VcfVariant(1, 5, "TATAA", "T", type="DELETION"),
+            VcfVariant(1, 7, "TAA", "T", type="DELETION"),
+            VcfVariant(1, 5, "A", "T", type="SNP"),
         ]
     )
 
@@ -134,11 +134,11 @@ def test_overlapping_deletions():
         [1, 2, 3, 5, 6]
     )
 
-    variants = GenotypeCalls(
+    variants = VcfVariants(
         [
-            VariantGenotype(1, 2, "ATCTG", "A", type="DELETION"),
-            VariantGenotype(1, 6, "GTCTA", "T", type="DELETION"),
-            VariantGenotype(1, 10, "A", "G", type="SNP")
+            VcfVariant(1, 2, "ATCTG", "A", type="DELETION"),
+            VcfVariant(1, 6, "GTCTA", "T", type="DELETION"),
+            VcfVariant(1, 10, "A", "G", type="SNP")
         ]
     )
     dummy_node_adder = DummyNodeAdder(graph, variants)
@@ -167,9 +167,9 @@ def test_insertion_with_identical_false_path():
         [1, 3, 4]
     )
 
-    variants = GenotypeCalls(
+    variants = VcfVariants(
         [
-            VariantGenotype(1, 2, "A", "ATCTG", type="INSERTION"),
+            VcfVariant(1, 2, "A", "ATCTG", type="INSERTION"),
         ]
     )
     dummy_node_adder = DummyNodeAdder(graph, variants)

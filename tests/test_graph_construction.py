@@ -1,14 +1,14 @@
 import logging
 
 from obgraph.graph_construction import GraphConstructor as GraphConstructor
-from alignment_free_graph_genotyper.variants import GenotypeCalls, VariantGenotype
+from alignment_free_graph_genotyper.variants import VcfVariants, VcfVariant
 
 
 def test_single_snp():
     reference = "ACTGGG"
 
-    variants = GenotypeCalls(
-        [VariantGenotype(1, 2, "C", "T", type="SNP")]
+    variants = VcfVariants(
+        [VcfVariant(1, 2, "C", "T", type="SNP")]
     )
 
     constructor = GraphConstructor(reference, variants)
@@ -34,9 +34,9 @@ def test_single_snp():
 
 def test_deletion_with_snp_at_end():
     reference = "TCTGTCTAGG"
-    variants = GenotypeCalls(
-        [VariantGenotype(1, 4, "GTCTA", "G", type="DELETION"),
-         VariantGenotype(1, 8, "A", "T", type="SNP")]
+    variants = VcfVariants(
+        [VcfVariant(1, 4, "GTCTA", "G", type="DELETION"),
+         VcfVariant(1, 8, "A", "T", type="SNP")]
     )
     constructor = GraphConstructor(reference, variants)
     graph = constructor.get_graph()
@@ -47,8 +47,8 @@ def test_single_deletion():
     logging.info("\n\nTest single deletion")
     reference = "AATTGG"
 
-    variants = GenotypeCalls(
-        [VariantGenotype(1, 2, "ATT", "A", type="DELETION")]
+    variants = VcfVariants(
+        [VcfVariant(1, 2, "ATT", "A", type="DELETION")]
     )
 
     constructor = GraphConstructor(reference, variants)
@@ -70,8 +70,8 @@ def test_single_deletion():
 def test_single_insertion():
     reference = "AATTGG"
 
-    variants = GenotypeCalls(
-        [VariantGenotype(1, 2, "A", "AAA", type="INSERTION")]
+    variants = VcfVariants(
+        [VcfVariant(1, 2, "A", "AAA", type="INSERTION")]
     )
 
     constructor = GraphConstructor(reference, variants)
@@ -85,7 +85,7 @@ def test_single_insertion():
 def test_double_deletion_with_snp_inside_first_deletion():
 
     reference = "ACTGATAAAG"
-    variants = GenotypeCalls([VariantGenotype(1, 4, "GAT", "G", type="DELETION"), VariantGenotype(1, 6, "T", "C", type="SNP"), VariantGenotype(1, 6, "TAAA", "T", type="DELETION")])
+    variants = VcfVariants([VcfVariant(1, 4, "GAT", "G", type="DELETION"), VcfVariant(1, 6, "T", "C", type="SNP"), VcfVariant(1, 6, "TAAA", "T", type="DELETION")])
     constructor = GraphConstructor(reference, variants)
     graph = constructor.get_graph()
     print(graph.get_node_at_ref_offset(0))
@@ -95,7 +95,7 @@ def test_double_deletion_with_snp_inside_first_deletion():
 
 def test_insertion_with_snp_right_before():
     reference = "AAAAAA"
-    variants = GenotypeCalls([VariantGenotype(1, 2, "A", "T", type="SNP"), VariantGenotype(1, 2, "A", "AC", type="INSERTION")])
+    variants = VcfVariants([VcfVariant(1, 2, "A", "T", type="SNP"), VcfVariant(1, 2, "A", "AC", type="INSERTION")])
     constructor = GraphConstructor(reference, variants)
     graph = constructor.get_graph_with_dummy_nodes()
 
@@ -114,14 +114,14 @@ def test_insertion_with_snp_right_before():
 
 def test_insertion_with_snp_right_before_and_right_after():
     reference = "AAAAAA"
-    variants = GenotypeCalls([VariantGenotype(1, 2, "A", "T", type="SNP"), VariantGenotype(1, 2, "A", "AC", type="INSERTION"), VariantGenotype(1, 3, "A", "C", type="SNP")])
+    variants = VcfVariants([VcfVariant(1, 2, "A", "T", type="SNP"), VcfVariant(1, 2, "A", "AC", type="INSERTION"), VcfVariant(1, 3, "A", "C", type="SNP")])
     constructor = GraphConstructor(reference, variants)
     graph = constructor.get_graph()
     print(graph)
 
 def test_deletion_with_snp_right_before_and_right_after():
     reference = "AAAAAA"
-    variants = GenotypeCalls([VariantGenotype(1, 2, "A", "T", type="SNP"), VariantGenotype(1, 2, "AA", "A", type="DELETION"), VariantGenotype(1, 3, "A", "C", type="SNP")])
+    variants = VcfVariants([VcfVariant(1, 2, "A", "T", type="SNP"), VcfVariant(1, 2, "AA", "A", type="DELETION"), VcfVariant(1, 3, "A", "C", type="SNP")])
     constructor = GraphConstructor(reference, variants)
     graph = constructor.get_graph()
     graph_with_dummy_nodes = constructor.get_graph_with_dummy_nodes()
@@ -131,12 +131,12 @@ def test_deletion_with_snp_right_before_and_right_after():
 
 def test_messy_graph():
     reference = "GCATATTTT"
-    variants = GenotypeCalls(
+    variants = VcfVariants(
         [
-            VariantGenotype(1, 2, "CAT", "C", type="DELETION"),
-            VariantGenotype(1, 3, "A", "G", type="SNP"),
-            VariantGenotype(1, 4, "TA", "T", type="DELETION"),
-            VariantGenotype(1, 5, "A", "AT", type="INSERTION"),
+            VcfVariant(1, 2, "CAT", "C", type="DELETION"),
+            VcfVariant(1, 3, "A", "G", type="SNP"),
+            VcfVariant(1, 4, "TA", "T", type="DELETION"),
+            VcfVariant(1, 5, "A", "AT", type="INSERTION"),
         ]
     )
 

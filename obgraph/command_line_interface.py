@@ -4,7 +4,7 @@ import sys
 import argparse
 from . import Graph
 from .util import add_indel_dummy_nodes
-from alignment_free_graph_genotyper.variants import GenotypeCalls
+from alignment_free_graph_genotyper.variants import VcfVariants
 from .haplotype_nodes import HaplotypeToNodes, NodeToHaplotypes
 from .dummy_node_adder import DummyNodeAdder
 from .haplotype_nodes import NodeToHaplotypes
@@ -54,7 +54,7 @@ def make(args):
         elif chromosome == "Y":
             numeric_chromosome = "24"
 
-        variants = GenotypeCalls.from_vcf(args.vcf, limit_to_chromosome=numeric_chromosome)
+        variants = VcfVariants.from_vcf(args.vcf, limit_to_chromosome=numeric_chromosome)
         ref_sequence = str(reference[args.chromosome])
         logging.info("Extracted sequence for chromosome %s. Length is: %d" % (chromosome, len(ref_sequence)))
         logging.info("There are %d variants in chromosome" % len(variants))
@@ -73,7 +73,7 @@ def add_indel_nodes(args):
     new_graph.to_file(args.out_file_name)
 
 def add_indel_nodes2(args):
-    variants = GenotypeCalls.from_vcf(args.vcf_file_name)
+    variants = VcfVariants.from_vcf(args.vcf_file_name)
     graph = Graph.from_file(args.graph_file_name)
     adder = DummyNodeAdder(graph, variants)
     new_graph = adder.create_new_graph_with_dummy_nodes()
@@ -82,7 +82,7 @@ def add_indel_nodes2(args):
 def add_allele_frequencies(args):
     logging.info("Reading graph")
     graph = Graph.from_file(args.graph_file_name)
-    variants = GenotypeCalls.from_vcf(args.vcf_file_name, limit_to_chromosome=args.chromosome, skip_index=True)
+    variants = VcfVariants.from_vcf(args.vcf_file_name, limit_to_chromosome=args.chromosome, skip_index=True)
     graph.set_allele_frequencies_from_variants(variants, use_chromosome=1)  # Use chromosome 1 because we always assume this is a single-chromosome graph
     graph.to_file(args.graph_file_name)
     logging.info("Wrote modified graph to the same file %s" % args.graph_file_name)
@@ -90,7 +90,7 @@ def add_allele_frequencies(args):
 
 def make_haplotype_to_nodes(args):
     graph = Graph.from_file(args.graph_file_name)
-    variants = GenotypeCalls.from_vcf(args.vcf_file_name)
+    variants = VcfVariants.from_vcf(args.vcf_file_name)
     haplotype_to_nodes = HaplotypeToNodes.from_graph_and_variants(graph, variants, args.n_haplotypes)
     logging.info("Saving to file")
     haplotype_to_nodes.to_file(args.out_file_name)
@@ -148,7 +148,7 @@ def run_argument_parser(args):
 
     def make_genotype_matrix(args):
         from .genotype_matrix import GenotypeMatrix
-        variants = GenotypeCalls.from_vcf(args.vcf_file_name, skip_index=True, limit_to_n_lines=None, make_generator=True)
+        variants = VcfVariants.from_vcf(args.vcf_file_name, skip_index=True, limit_to_n_lines=None, make_generator=True)
 
         if args.node_to_haplotypes is not None:
             graph = Graph.from_file(args.graph)
@@ -221,7 +221,7 @@ def run_argument_parser(args):
 
     def make_random_haplotypes(args):
         graph = Graph.from_file(args.graph)
-        variants = GenotypeCalls.from_vcf(args.vcf_file_name, skip_index=True)
+        variants = VcfVariants.from_vcf(args.vcf_file_name, skip_index=True)
         haplotype_nodes = HaplotypeToNodes.make_from_n_random_haplotypes(graph, variants, n_haplotypes=args.n_haplotypes)
         logging.info("Making new haplotypenodes by traversing full graph for each haplotype")
         new = haplotype_nodes.get_new_by_traversing_graph(graph, args.n_haplotypes)
@@ -237,7 +237,7 @@ def run_argument_parser(args):
 
 
     def validate_graph(args):
-        variants = GenotypeCalls.from_vcf(args.vcf)
+        variants = VcfVariants.from_vcf(args.vcf)
         graph = Graph.from_file(args.graph)
 
         for i, variant in enumerate(variants):
@@ -260,7 +260,7 @@ def run_argument_parser(args):
     def make_variant_to_nodes(args):
         from .variant_to_nodes import VariantToNodes
         graph = Graph.from_file(args.graph)
-        variants = GenotypeCalls.from_vcf(args.vcf)
+        variants = VcfVariants.from_vcf(args.vcf)
         variant_to_nodes = VariantToNodes.from_graph_and_variants(graph, variants)
         variant_to_nodes.to_file(args.out_file_name)
         logging.info("Wrote to file %s" % args.out_file_name)
