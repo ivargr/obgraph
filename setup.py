@@ -1,8 +1,8 @@
-from setuptools import setup
+from setuptools import setup, Extension
 from distutils.core import setup
-from Cython.Build import cythonize
-from distutils.extension import Extension
-from Cython.Distutils import build_ext
+#from Cython.Build import cythonize
+#from distutils.extension import Extension
+#from Cython.Distutils import build_ext
 
 ext_modules=[
     Extension("obgraph.cython_traversing",
@@ -28,6 +28,6 @@ setup(name='obgraph',
       entry_points={
             'console_scripts': ['obgraph=obgraph.command_line_interface:main']
       },
-      cmdclass = {"build_ext": build_ext},
+      #cmdclass = {"build_ext": build_ext},
       ext_modules = ext_modules
 )

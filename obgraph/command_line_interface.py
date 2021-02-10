@@ -265,14 +265,11 @@ def run_argument_parser(args):
         variant_to_nodes.to_file(args.out_file_name)
         logging.info("Wrote to file %s" % args.out_file_name)
 
-
     subparser = subparsers.add_parser("make_variant_to_nodes")
     subparser.add_argument("-g", "--graph", required=True)
     subparser.add_argument("-v", "--vcf", required=True)
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.set_defaults(func=make_variant_to_nodes)
-
-
 
     def set_numeric_node_sequences(args):
         graph = Graph.from_file(args.graph)
