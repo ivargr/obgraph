@@ -9,6 +9,16 @@ from itertools import repeat
 from .traversing import traverse_graph_by_following_nodes
 import random
 
+
+class GenotypeToNodes:
+    def __init__(self):
+        # Could this just be a map from genotype to two haplotypes?
+        pass
+
+    @classmethod
+    def make_from_n_random_haplotypes(cls, graph, variants, n_haplotypes=10):
+        pass
+
 class HaplotypeToNodes:
     properties = {"_haplotype_to_index", "_haplotype_to_n_nodes", "_nodes"}
     def __init__(self, haplotype_to_index=None, haplotype_to_n_nodes=None, nodes=None):
@@ -108,8 +118,10 @@ class HaplotypeToNodes:
         return HaplotypeToNodes.get_flat_haplotypes_and_nodes_from_graph_and_variants(graph, variants, limit_to_n_haplotypes)
 
     @classmethod
-    def make_from_n_random_haplotypes(cls, graph, variants, n_haplotypes=10):
+    def make_from_n_random_haplotypes(cls, graph, variants, n_haplotypes=10, weight_by_allele_frequency=True):
         # Simple way of making "arbitrary" haplotypes, just give every nth variant to every haplotype
+        if not weight_by_allele_frequency:
+            logging.info("Will not weight by allele frequency, will divide haplotypes equally between ref and var nodes")
         current_haplotype = 0
 
         haplotype_ids = list(range(n_haplotypes))
@@ -127,7 +139,12 @@ class HaplotypeToNodes:
 
             # Select number of haplotypes on variant node by allele frequency, always minimum 1
             # never more than n_haplotypes-1 (guaranteeing min 1 on ref and min 1 on alt)
-            n_haplotypes_on_variant_node = int(round(min(max(1, graph.get_node_allele_frequency(variant_node) * n_haplotypes), n_haplotypes-1)))
+            if weight_by_allele_frequency:
+                n_haplotypes_on_variant_node = int(round(min(max(1, graph.get_node_allele_frequency(variant_node) * n_haplotypes), n_haplotypes-1)))
+            else:
+                assert n_haplotypes % 2 == 0, "Number of haplotypes most be divisible by 2"
+                n_haplotypes_on_variant_node = n_haplotypes // 2
+
             haplotypes_on_variant_node = set(random.sample(haplotype_ids, n_haplotypes_on_variant_node))
 
             for haplotype in haplotype_ids:

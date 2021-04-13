@@ -24,5 +24,4 @@ def test_find_insertion_nodes():
     assert ref_node == 4
     assert variant_node == 2
 
-
 test_find_insertion_nodes()

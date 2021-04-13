@@ -1,4 +1,5 @@
 import logging
+import pyximport; pyximport.install()
 logging.basicConfig(level=logging.INFO, format='%(module)s %(asctime)s %(levelname)s: %(message)s')
 import sys
 import argparse
@@ -222,7 +223,7 @@ def run_argument_parser(args):
     def make_random_haplotypes(args):
         graph = Graph.from_file(args.graph)
         variants = VcfVariants.from_vcf(args.vcf_file_name, skip_index=True)
-        haplotype_nodes = HaplotypeToNodes.make_from_n_random_haplotypes(graph, variants, n_haplotypes=args.n_haplotypes)
+        haplotype_nodes = HaplotypeToNodes.make_from_n_random_haplotypes(graph, variants, n_haplotypes=args.n_haplotypes, weight_by_allele_frequency=not args.no_frequency_weighting)
         logging.info("Making new haplotypenodes by traversing full graph for each haplotype")
         new = haplotype_nodes.get_new_by_traversing_graph(graph, args.n_haplotypes)
         new.to_file(args.out_file_name)
@@ -233,6 +234,7 @@ def run_argument_parser(args):
     subparser.add_argument("-g", "--graph", required=True)
     subparser.add_argument("-v", "--vcf-file-name", required=True)
     subparser.add_argument("-n", "--n-haplotypes", type=int, required=False, default=10)
+    subparser.add_argument("-e", "--no-frequency-weighting", type=bool, required=False, default=False, help="Set to True to not weight haplotypes by allele frequency")
     subparser.set_defaults(func=make_random_haplotypes)
 
 
@@ -297,6 +299,17 @@ def run_argument_parser(args):
     subparser.add_argument("-g", "--graph", required=True)
     subparser.add_argument("-t", "--n-threads", required=False, default=10, type=int)
     subparser.set_defaults(func=set_numeric_node_sequences)
+
+    def create_coordinate_converter(args):
+        from .coordinate_converter import CoordinateConverter
+        converter = CoordinateConverter.from_graph(Graph.from_file(args.graph))
+        converter.to_file(args.out_file_name)
+        logging.info("Wrote to file %s" % args.out_file_name)
+
+    subparser = subparsers.add_parser("create_coordinate_converter")
+    subparser.add_argument("-g", "--graph", required=True)
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.set_defaults(func=create_coordinate_converter)
 
     if len(args) == 0:
         parser.print_help()
