@@ -18,7 +18,7 @@ class Graph:
 
     def __init__(self, nodes=None, node_to_sequence_index=None, node_sequences=None, node_to_edge_index=None, node_to_n_edges=None, edges=None,
                  node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None, linear_ref_nodes_index=None,
-                 numeric_node_sequences=None):
+                 numeric_node_sequences=None, linear_ref_nodes_and_dummy_nodes_index=None):
         self.nodes = nodes
         self.node_to_sequence_index = node_to_sequence_index
         self.node_sequences = node_sequences
@@ -39,6 +39,13 @@ class Graph:
             logging.info("Done making linear ref nodes index")
         else:
             self.linear_ref_nodes_index = linear_ref_nodes_index
+        
+        if self.nodes is not None and linear_ref_nodes_and_dummy_nodes_index is None:
+            self.linear_ref_nodes_and_dummy_nodes_index = None
+            logging.info("Making linear ref nodes and dummy nodes index")
+            self.make_linear_ref_node_and_ref_dummy_node_index()
+        else:
+            self.linear_ref_nodes_and_dummy_nodes_index = linear_ref_nodes_and_dummy_nodes_index
 
     def node_has_edges(self, node, edges):
         e = self.get_edges(node)
@@ -174,7 +181,24 @@ class Graph:
             self._linear_ref_nodes_cache = nodes
             return nodes
 
+    def make_linear_ref_node_and_ref_dummy_node_index(self):
+        linear_ref_nodes_and_dummy_nodes_index = np.zeros(len(self.linear_ref_nodes_index), dtype=np.uint8)
+        for node in range(len(linear_ref_nodes_and_dummy_nodes_index)):
+            if node % 100000 == 0:
+                logging.info("%d nodes processed" % node)
+
+            if self.is_linear_ref_node_or_linear_ref_dummy_node(node):
+                linear_ref_nodes_and_dummy_nodes_index[node] = 1
+
+        self.linear_ref_nodes_and_dummy_nodes_index = linear_ref_nodes_and_dummy_nodes_index
+
     def is_linear_ref_node_or_linear_ref_dummy_node(self, node):
+        if self.linear_ref_nodes_and_dummy_nodes_index is not None:
+            if self.linear_ref_nodes_and_dummy_nodes_index[node] == 1:
+                return True
+            else:
+                return False
+
         if self.is_linear_ref_node(node):
             return True
 
@@ -229,7 +253,8 @@ class Graph:
                  chromosome_start_nodes=self.chromosome_start_nodes,
                  allele_frequencies=allele_frequencies,
                  linear_ref_nodes_index=self.linear_ref_nodes_index,
-                 numeric_node_sequences=numeric_node_sequences
+                 numeric_node_sequences=numeric_node_sequences,
+                 linear_ref_nodes_and_dummy_nodes_index=self.linear_ref_nodes_and_dummy_nodes_index
                  )
 
         logging.info("Saved to file %s" % file_name)
@@ -250,6 +275,10 @@ class Graph:
         if "linear_ref_nodes_index" in data:
             linear_ref_nodes_index = data["linear_ref_nodes_index"]
 
+        linear_ref_nodes_and_dummy_nodes_index = None
+        if "linear_ref_nodes_and_dummy_nodes_index" in data:
+            linear_ref_nodes_and_dummy_nodes_index = data["linear_ref_nodes_and_dummy_nodes_index"]
+
         numeric_node_sequences = None
         if "numeric_node_sequences" in data:
             numeric_node_sequences = data["numeric_node_sequences"]
@@ -265,7 +294,8 @@ class Graph:
                    data["chromosome_start_nodes"],
                    allele_frequencies,
                    linear_ref_nodes_index,
-                   numeric_node_sequences)
+                   numeric_node_sequences,
+                   linear_ref_nodes_and_dummy_nodes_index)
 
 
     def get_flat_graph(self):
