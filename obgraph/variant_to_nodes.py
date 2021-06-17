@@ -39,3 +39,43 @@ class VariantToNodes:
             ref_nodes[i] = ref_node
 
         return cls(ref_nodes, var_nodes)
+
+
+class NodeToVariants:
+    properties = {"index"}
+    def __init__(self, index):
+        self.index = index
+
+    @classmethod
+    def from_file(cls, file_name):
+        try:
+            data = np.load(file_name)
+        except FileNotFoundError:
+            data = np.load(file_name + ".npz")
+
+        return cls(data["index"])
+
+    def to_file(self, file_name):
+        np.savez(file_name, index=self.index)
+
+    def get_variant_at_node(self, node):
+        if self.index[node] == -1:
+            return None
+        return self.index[node]
+
+    @classmethod
+    def from_variant_to_nodes(cls, variant_to_nodes):
+        n_nodes = max(np.max(variant_to_nodes.ref_nodes), np.max(variant_to_nodes.var_nodes))
+        index = np.zeros(n_nodes+1, dtype=np.int32) - 1
+
+        for variant in range(len(variant_to_nodes.ref_nodes+1)):
+            if variant % 100000 == 0:
+                logging.info("%d variants processed" % variant)
+
+            ref_node = variant_to_nodes.ref_nodes[variant]
+            var_node = variant_to_nodes.var_nodes[variant]
+
+            index[ref_node] = variant
+            index[var_node] = variant
+
+        return cls(index)

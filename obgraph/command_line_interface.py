@@ -172,10 +172,35 @@ def run_argument_parser(args):
     subparser.add_argument("-c", "--chunk-size", required=False, type=int, default=10000, help="Number of variants to process in each job")
     subparser.set_defaults(func=make_genotype_matrix)
 
+    def make_haplotype_matrix(args):
+        from .haplotype_matrix import HaplotypeMatrix
+        variants = VcfVariants.from_vcf(args.vcf_file_name, skip_index=True, limit_to_n_lines=None,
+                                        make_generator=True)
+        matrix = HaplotypeMatrix.from_variants(variants, args.n_individuals, args.n_variants,
+                                                  n_threads=args.n_threads, chunk_size=args.chunk_size)
+
+        matrix.to_file(args.out_file_name)
+
+    subparser = subparsers.add_parser("make_haplotype_matrix")
+    subparser.add_argument("-v", "--vcf-file-name", required=True)
+    subparser.add_argument("-n", "--n-individuals", type=int, required=True)
+    subparser.add_argument("-N", "--node-to-haplotypes", required=False)
+    subparser.add_argument("-o", "--out-file-name", required=True)
+    subparser.add_argument("-m", "--n-variants", required=True, type=int)
+    subparser.add_argument("-t", "--n-threads", required=False, type=int, default=6,
+                           help="Number of threads used to fill matrix")
+    subparser.add_argument("-c", "--chunk-size", required=False, type=int, default=10000,
+                           help="Number of variants to process in each job")
+    subparser.set_defaults(func=make_haplotype_matrix)
+
     def analyse_genotype_matrix(args):
 
+        whitelist_array = None
+        if args.whitelist_array is not None:
+            whitelist_array = np.load(args.whitelist_array)
+
         matrix = GenotypeMatrix.from_file(args.genotype_matrix)
-        analyser = GenotypeMatrixAnalyser(matrix)
+        analyser = GenotypeMatrixAnalyser(matrix, whitelist_array=whitelist_array)
         lookup = analyser.analyse(args.n_threads)
         lookup.to_file(args.out_file_name)
         logging.info("Wrote lookup of most similar genotype to file %s" % args.out_file_name)
@@ -183,9 +208,29 @@ def run_argument_parser(args):
 
     subparser = subparsers.add_parser("analyse_genotype_matrix")
     subparser.add_argument("-G", "--genotype-matrix", required=True)
+    subparser.add_argument("-w", "--whitelist-array", required=False, help="Array of whitelist variants")
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.add_argument("-t", "--n-threads", required=False, type=int, help="Number of threads to use", default=8)
     subparser.set_defaults(func=analyse_genotype_matrix)
+
+
+    def make_transition_probabilities(args):
+        from .genotype_matrix import GenotypeTransitionProbabilities, MostSimilarVariantLookup
+        probs = GenotypeTransitionProbabilities.from_most_similar_variants_and_matrix(
+            MostSimilarVariantLookup.from_file(args.most_similar_variants),
+            GenotypeMatrix.from_file(args.genotype_matrix),
+            n_threads=args.n_threads
+        )
+        probs.to_file(args.out_file_name)
+        logging.info("Wrote to file %s" % args.out_file_name)
+
+    subparser = subparsers.add_parser("make_transition_probabilities")
+    subparser.add_argument("-G", "--genotype-matrix", required=True)
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.add_argument("-m", "--most-similar-variants", required=True)
+    subparser.add_argument("-t", "--n-threads", required=False, type=int, help="Number of threads to use", default=8)
+    subparser.set_defaults(func=make_transition_probabilities)
+
 
     def traverse(args):
         g = Graph.from_file(args.graph)
@@ -209,14 +254,21 @@ def run_argument_parser(args):
     subparser.set_defaults(func=traverse)
 
     def get_genotype_frequencies(args):
-        matrix = GenotypeMatrix.from_file(args.genotype_matrix)
-        frequencies = GenotypeFrequencies.from_genotype_matrix(matrix, args.n_threads)
+        if args.vcf_file is not None:
+            logging.warning("Creating naively from af field of vcf file")
+            variants = VcfVariants.from_vcf(args.vcf_file)
+            frequencies = GenotypeFrequencies.create_naive_from_vcf_af_field(variants)
+        else:
+            matrix = GenotypeMatrix.from_file(args.genotype_matrix)
+            frequencies = GenotypeFrequencies.from_genotype_matrix(matrix, args.n_threads)
+
         frequencies.to_file(args.out_file_name)
         logging.info("Wrote frequencies to file %s" % args.out_file_name)
 
     subparser = subparsers.add_parser("get_genotype_frequencies")
     subparser.add_argument("-o", "--out_file_name", required=True)
-    subparser.add_argument("-g", "--genotype-matrix", required=True)
+    subparser.add_argument("-g", "--genotype-matrix", required=False)
+    subparser.add_argument("-v", "--vcf-file", required=False, help="If specified, a naive approach will be used, computing from the AF field")
     subparser.add_argument("-t", "--n-threads", default=10, type=int, required=False)
     subparser.set_defaults(func=get_genotype_frequencies)
 
@@ -272,6 +324,17 @@ def run_argument_parser(args):
     subparser.add_argument("-v", "--vcf", required=True)
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.set_defaults(func=make_variant_to_nodes)
+
+    def make_node_to_variants(args):
+        from .variant_to_nodes import NodeToVariants, VariantToNodes
+        variant_to_nodes = VariantToNodes.from_file(args.variant_to_nodes)
+        node_to_variants = NodeToVariants.from_variant_to_nodes(variant_to_nodes)
+        node_to_variants.to_file(args.out_file_name)
+
+    subparser = subparsers.add_parser("make_node_to_variants")
+    subparser.add_argument("-v", "--variant_to_nodes", required=True)
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.set_defaults(func=make_node_to_variants)
 
     def set_numeric_node_sequences(args):
         graph = Graph.from_file(args.graph)

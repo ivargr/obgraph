@@ -2,7 +2,7 @@ import numpy as np
 import logging
 import time
 from .graph import VariantNotFoundException
-from graph_kmer_index.shared_mem import to_shared_memory, from_shared_memory
+from graph_kmer_index.shared_mem import to_shared_memory, from_shared_memory, SingleSharedArray
 from multiprocessing import Pool, Process
 from .variant_to_nodes import VariantToNodes
 
@@ -26,9 +26,75 @@ class MostSimilarVariantLookup:
         try:
             data = np.load(file_name)
         except FileNotFoundError:
-            data = np.load(file_name + ".npy")
+            data = np.load(file_name + ".npz")
 
         return cls(data["lookup_array"], data["prob_same_genotype"])
+
+
+class GenotypeTransitionProbabilities:
+    properties = {"matrix"}
+    def __init__(self, matrix=None):
+        self.matrix = matrix
+
+    def to_file(self, file_name):
+        np.save(file_name, self.matrix)
+
+    @classmethod
+    def from_file(cls, file_name):
+        try:
+            data = np.load(file_name)
+        except FileNotFoundError:
+            data = np.load(file_name + ".npy")
+
+        return cls(data)
+
+    def get_transition_probabilities(self, variant_id, from_genotype):
+        assert from_genotype in [1, 2, 3]
+        matrix_index = (from_genotype - 1) * 3
+        return self.matrix[matrix_index:matrix_index+3, variant_id]
+
+    def get_transition_probability(self, variant_id, from_genotype, to_genotype):
+        assert from_genotype in [1, 2, 3]
+        assert to_genotype in [1, 2, 3]
+        matrix_index = (from_genotype-1)*3 + (to_genotype-1)
+        return self.matrix[matrix_index, variant_id]
+
+    @staticmethod
+    def create_using_shared_memory(variant_interval):
+        from_variant, to_variant = variant_interval
+        logging.info("Creating on interval %d-%d" % (from_variant, to_variant))
+
+        genotype_matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix_shared")
+        most_similar_variants = from_shared_memory(MostSimilarVariantLookup, "most_similar_variants_shared")
+        probability_matrix = from_shared_memory(GenotypeTransitionProbabilities, "transition_probs_shared")
+        matrix = probability_matrix.matrix
+
+        for variant_id in range(from_variant, to_variant):
+            if variant_id % 10000 == 0:
+                logging.info("%d/%d variants processed" % (variant_id-from_variant, to_variant-from_variant))
+
+            most_similar_variant = most_similar_variants.get_most_similar_variant(variant_id)
+            transition_probs = genotype_matrix.get_transitions_probs_between_variants(most_similar_variant, variant_id)
+            matrix[:, variant_id] = transition_probs
+
+    @classmethod
+    def from_most_similar_variants_and_matrix(cls, most_similar_variants, genotype_matrix, n_threads=10):
+        n_variants = len(most_similar_variants.lookup_array)
+        matrix = cls(np.zeros((9, n_variants), dtype=np.float))
+        to_shared_memory(matrix, "transition_probs_shared")
+        to_shared_memory(genotype_matrix, "genotype_matrix_shared")
+        to_shared_memory(most_similar_variants, "most_similar_variants_shared")
+
+        intervals = [int(i) for i in np.linspace(0, n_variants, n_threads)]
+        variant_intervals = [(from_id, to_id) for from_id, to_id in zip(intervals[0:-1], intervals[1:])]
+        logging.info("Will analyse intervals: %s" % variant_intervals)
+
+        pool = Pool(n_threads)
+
+        for result in pool.imap(GenotypeTransitionProbabilities.create_using_shared_memory, variant_intervals):
+            logging.info("Done with one job")
+
+        return from_shared_memory(GenotypeTransitionProbabilities, "transition_probs_shared")
 
 
 class GenotypeFrequencies:
@@ -59,6 +125,19 @@ class GenotypeFrequencies:
                     prev_time = time.time()
 
                 array[variant_id] = len(np.where(genotype_matrix.matrix[:, variant_id] == numeric_genotype)[0]) / n_individuals
+
+    @classmethod
+    def create_naive_from_vcf_af_field(cls, variants):
+        homo_ref = []
+        homo_alt = []
+        hetero = []
+        for variant in variants:
+            allele_frequency = variant.get_variant_allele_frequency()
+            homo_alt.append(allele_frequency**2)
+            homo_ref.append((1-allele_frequency)**2)
+            hetero.append(1 - allele_frequency**2 - (1-allele_frequency)**2)
+
+        return cls(np.array(homo_ref), np.array(homo_alt), np.array(hetero))
 
     @classmethod
     def from_genotype_matrix(cls, genotype_matrix, n_threads=10):
@@ -119,8 +198,9 @@ class GenotypeFrequencies:
 
 
 class GenotypeMatrixAnalyser:
-    def __init__(self, genotype_matrix):
+    def __init__(self, genotype_matrix, whitelist_array=None):
         self.matrix = genotype_matrix
+        self._whitelist_array = whitelist_array
 
     @staticmethod
     def analyse_variants_on_shared_memody(variant_interval):
@@ -128,6 +208,7 @@ class GenotypeMatrixAnalyser:
         if from_id == 0:
             from_id = 1
         logging.info("Analysing variant %d to %d in one job" % (from_id, to_id))
+        whitelist_array = from_shared_memory(SingleSharedArray, "whitelist_variants").array
         matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix")
         lookup = from_shared_memory(MostSimilarVariantLookup, "most_similar_variant_lookup")
         n_individuals = matrix.matrix.shape[0]
@@ -137,7 +218,7 @@ class GenotypeMatrixAnalyser:
                 logging.info("%d/%d variants analysed (last 5k analyse in %.3f s)" % (i, to_id-from_id, time.time()-prev_time))
                 prev_time = time.time()
 
-            most_similar, score = matrix.get_most_similar_previous_variant(variant_id)
+            most_similar, score = matrix.get_most_similar_previous_variant(variant_id, whitelist_array)
             #logging.info("Most similar to %d is %d with score %d. Genotype distribution: %s" % (variant_id, most_similar, score, np.unique(self.matrix[:,variant_id], return_counts=True)))
             lookup.lookup_array[variant_id] = most_similar
             lookup.prob_same_genotype[variant_id] = score / n_individuals
@@ -149,6 +230,8 @@ class GenotypeMatrixAnalyser:
 
         most_similar_lookup = np.zeros(n_variants, dtype=np.uint32)
         prob_same_genotype = np.zeros(n_variants, dtype=np.float)
+
+        to_shared_memory(SingleSharedArray(self._whitelist_array), "whitelist_variants")
 
         lookup = MostSimilarVariantLookup(most_similar_lookup, prob_same_genotype)
         to_shared_memory(self.matrix, "genotype_matrix")
@@ -195,22 +278,89 @@ class GenotypeMatrix:
         matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix")
         return cls(matrix.matrix)
 
-    def get_most_similar_previous_variant(self, variant_id):
+    def get_transitions_probs_between_variants(self, from_variant_id, to_variant_id):
+        matrix = self.matrix
+        probs = np.zeros(3*3)  # the 9 probs will be stored in a flat array
+        for from_genotype in [1, 2, 3]:
+            for to_genotype in [1, 2, 3]:
+                genotype_indexes = np.where(matrix[:, from_variant_id] == from_genotype)[0]
+                n_total = len(genotype_indexes)
+                n_kept = len(np.where(matrix[genotype_indexes, to_variant_id] == to_genotype)[0])
+
+                if n_total == 0:
+                    prob = 0.0
+                else:
+                    prob = n_kept / n_total
+
+                probs_index = 3*(from_genotype-1) + (to_genotype-1)
+                probs[probs_index] = prob
+
+        return probs
+
+    def get_individuals_with_genotype_at_variant(self, variant_id, genotype):
+        assert genotype in [1, 2, 3]
+        return np.where(self.matrix[:, variant_id] == genotype)[0]
+
+    def get_transition_prob_from_single_to_multiple_variants(self, from_variant_id, from_genotype, to_variant_ids_and_genotypes):
+
+        # init to individuals at from_variant
+        shared_individuals = set(self.get_individuals_with_genotype_at_variant(from_variant_id, from_genotype))
+        n_at_from_variant = len(shared_individuals)
+
+        if n_at_from_variant == 0:
+            return 0
+
+        for to_variant, to_genotype in to_variant_ids_and_genotypes:
+            individuals = self.get_individuals_with_genotype_at_variant(to_variant, to_genotype)
+            shared_individuals = shared_individuals.intersection(individuals)
+            if len(shared_individuals) == 0:
+                break
+
+        n_left = len(shared_individuals)
+
+        return n_left / n_at_from_variant
+
+    def get_transition_prob(self, from_variant_id, to_variant_id, from_genotype, to_genotype):
+        assert from_genotype in [1, 2, 3]
+        assert to_genotype in [1, 2, 3]
+        matrix = self.matrix
+        genotype_indexes = np.where(matrix[:, from_variant_id] == from_genotype)[0]
+        n_total = len(genotype_indexes)
+        n_kept = len(np.where(matrix[genotype_indexes, to_variant_id] == to_genotype)[0])
+
+        if n_total == 0:
+            prob = 0.0
+        else:
+            prob = n_kept / n_total
+
+        return prob
+
+    def get_most_similar_previous_variant(self, variant_id, whitelist_array=None, window=1000):
         matrix = self.matrix
         #variant_genotypes = matrix[:,variant_id]
         #print("Variant genotypes: %s" % variant_genotypes)
         submatrix_start = 0
+        submatrix_end = variant_id + 1
         # Only look at 1000 variants back
-        if variant_id > 1000:
-            submatrix_start = variant_id - 1000
+        if variant_id > window:
+            submatrix_start = variant_id - window
 
-        submatrix = matrix[:,submatrix_start:variant_id]
+        if submatrix_end > matrix.shape[1]:
+            submatrix_end = matrix.shape[1]
+
+        submatrix = matrix[:,submatrix_start:submatrix_end]
         #print("Submatrix: %s" % submatrix)
         similarity_scores = np.sum(
             submatrix.transpose() == matrix[:,variant_id],
             axis=1
         )
         #print(similarity_scores)
+        # set score for self to -1 to ignore
+        similarity_scores[variant_id-submatrix_start] = -1
+
+        if whitelist_array is not None:
+            # all variants not marked by 1 in whitelist array should not be chosen, give these low similarity score
+            similarity_scores[whitelist_array[submatrix_start:submatrix_end] == 0] = -1
 
         most_similar = np.argmax(similarity_scores) + submatrix_start
         value = similarity_scores[most_similar - submatrix_start]
@@ -219,6 +369,7 @@ class GenotypeMatrix:
     @staticmethod
     def fill_shared_memory_matrix_with_variants(variants):
         matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix")
+        n_individuals = matrix.matrix.shape[0]
 
         for variant in variants:
             variant_number = variant.vcf_line_number
@@ -226,6 +377,9 @@ class GenotypeMatrix:
                 logging.info("%d variants processeed" % variant_number)
 
             for individual_id, genotype in variant.get_individuals_and_numeric_genotypes():
+                if individual_id >= n_individuals:
+                    break
+
                 matrix.matrix[individual_id, variant_number] = genotype
 
     @classmethod
