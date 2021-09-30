@@ -55,9 +55,9 @@ def make(args):
         elif chromosome == "Y":
             numeric_chromosome = "24"
 
-        variants = VcfVariants.from_vcf(args.vcf, limit_to_chromosome=numeric_chromosome)
         ref_sequence = str(reference[args.chromosome])
         logging.info("Extracted sequence for chromosome %s. Length is: %d" % (chromosome, len(ref_sequence)))
+        variants = VcfVariants.from_vcf(args.vcf, limit_to_chromosome=numeric_chromosome)
         logging.info("There are %d variants in chromosome" % len(variants))
 
         constructor = GraphConstructor(ref_sequence, variants)
@@ -149,6 +149,16 @@ def run_argument_parser(args):
 
     def make_genotype_matrix(args):
         from .genotype_matrix import GenotypeMatrix
+
+        if args.n_variants is not None:
+            n_variants = args.n_variants
+            assert args.n_individuals is not None, "n_individuals must be specified when n_variants is"
+            n_individuals = args.n_individuals
+        else:
+            logging.info("N variants and individuals will be counted from the vcf file. Can take some time.")
+            from .util import get_number_of_variants_and_individuals_from_vcf
+            n_variants, n_individuals = get_number_of_variants_and_individuals_from_vcf(args.vcf_file_name)
+
         variants = VcfVariants.from_vcf(args.vcf_file_name, skip_index=True, limit_to_n_lines=None, make_generator=True)
 
         if args.node_to_haplotypes is not None:
@@ -157,17 +167,17 @@ def run_argument_parser(args):
             matrix = GenotypeMatrix.from_nodes_to_haplotypes_and_variants(nodes_to_haplotypes, variants, graph, args.n_individuals)
         else:
             logging.info("Making genotype matrix directly from vcf")
-            matrix = GenotypeMatrix.from_variants(variants, args.n_individuals, args.n_variants, n_threads=args.n_threads, chunk_size=args.chunk_size)
+            matrix = GenotypeMatrix.from_variants(variants, n_individuals, n_variants, n_threads=args.n_threads, chunk_size=args.chunk_size)
 
         matrix.to_file(args.out_file_name)
 
     subparser = subparsers.add_parser("make_genotype_matrix")
     subparser.add_argument("-g", "--graph", required=False)
     subparser.add_argument("-v", "--vcf-file-name", required=True)
-    subparser.add_argument("-n", "--n-individuals", type=int, required=True)
+    subparser.add_argument("-n", "--n-individuals", type=int, required=False)
     subparser.add_argument("-N", "--node-to-haplotypes", required=False)
     subparser.add_argument("-o", "--out-file-name", required=True)
-    subparser.add_argument("-m", "--n-variants", required=True, type=int)
+    subparser.add_argument("-m", "--n-variants", required=False, type=int)
     subparser.add_argument("-t", "--n-threads", required=False, type=int, default=6, help="Number of threads used to fill matrix")
     subparser.add_argument("-c", "--chunk-size", required=False, type=int, default=10000, help="Number of variants to process in each job")
     subparser.set_defaults(func=make_genotype_matrix)

@@ -70,7 +70,7 @@ class GenotypeTransitionProbabilities:
         matrix = probability_matrix.matrix
 
         for variant_id in range(from_variant, to_variant):
-            if variant_id % 10000 == 0:
+            if variant_id % 100000 == 0:
                 logging.info("%d/%d variants processed" % (variant_id-from_variant, to_variant-from_variant))
 
             most_similar_variant = most_similar_variants.get_most_similar_variant(variant_id)
@@ -214,8 +214,8 @@ class GenotypeMatrixAnalyser:
         n_individuals = matrix.matrix.shape[0]
         prev_time = time.time()
         for i, variant_id in enumerate(range(from_id, to_id)):
-            if i % 5000 == 0 and i > 0:
-                logging.info("%d/%d variants analysed (last 5k analyse in %.3f s)" % (i, to_id-from_id, time.time()-prev_time))
+            if i % 50000 == 0 and i > 0:
+                logging.info("%d/%d variants analysed (last 50k analysed in %.3f s)" % (i, to_id-from_id, time.time()-prev_time))
                 prev_time = time.time()
 
             most_similar, score = matrix.get_most_similar_previous_variant(variant_id, whitelist_array)

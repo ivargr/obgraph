@@ -116,3 +116,11 @@ def add_indel_dummy_nodes(graph):
             to_nodes[i] = change_edges[(from_node, to_node)][1]
 
     return Graph.from_flat_nodes_and_edges(np.array(node_ids), node_sequences, np.array(node_sizes), np.array(from_nodes), np.array(to_nodes), linear_ref_nodes, chromosome_start_nodes)
+
+
+def get_number_of_variants_and_individuals_from_vcf(file_name):
+    raise NotImplementedError("")
+    file = open(file_name)
+    for line in file:
+        continue
+

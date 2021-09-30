@@ -491,7 +491,7 @@ class Graph:
     def get_snp_nodes(self, ref_offset, variant_bases, chromosome=1):
         node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
         node_offset = self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
-        assert node_offset == 0
+        assert node_offset == 0, "Node offset is 0 at ref_offset %d. Variant bases: %s. Chromosome %d" % (ref_offset, variant_bases, chromosome)
         prev_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset - 1)
 
         _, possible_snp_nodes = self.find_nodes_from_node_that_matches_sequence(prev_node, variant_bases, [], [])
