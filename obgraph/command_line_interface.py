@@ -15,7 +15,7 @@ from .graph_construction import GraphConstructor
 from .graph_merger import merge_graphs
 import numpy as np
 from . import cython_traversing
-from graph_kmer_index.shared_mem import from_shared_memory, to_shared_memory, SingleSharedArray
+from graph_kmer_index.shared_mem import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session
 from multiprocessing import Pool
 from alignment_free_graph_genotyper.cython_chain_genotyper import np_letter_sequence_to_numeric
 import time
@@ -390,4 +390,5 @@ def run_argument_parser(args):
 
     args = parser.parse_args(args)
     args.func(args)
+    remove_shared_memory_in_session()
 

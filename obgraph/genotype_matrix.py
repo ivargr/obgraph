@@ -5,6 +5,7 @@ from .graph import VariantNotFoundException
 from graph_kmer_index.shared_mem import to_shared_memory, from_shared_memory, SingleSharedArray
 from multiprocessing import Pool, Process
 from .variant_to_nodes import VariantToNodes
+import itertools
 
 class MostSimilarVariantLookup:
     properties = {"lookup_array", "prob_same_genotype"}
@@ -259,10 +260,11 @@ class GenotypeMatrix:
 
     @classmethod
     def from_variants(cls, variants, n_individuals, n_variants, n_threads=10, chunk_size=10000):
+        shared_memory_unique_id = str(np.random.randint(0, 10e15))
         matrix = np.zeros((n_individuals, n_variants), dtype=np.uint8)
         matrix = cls(matrix)
         logging.info("Putting genotype matrix in shared memory")
-        to_shared_memory(matrix, "genotype_matrix")
+        to_shared_memory(matrix, "genotype_matrix"+shared_memory_unique_id)
 
         logging.info("Getting variant chunks")
         variant_chunks = variants.get_chunks(chunk_size=chunk_size)
@@ -270,12 +272,12 @@ class GenotypeMatrix:
         pool = Pool(n_threads)
 
         i = 0
-        for result in pool.imap(GenotypeMatrix.fill_shared_memory_matrix_with_variants, variant_chunks):
+        for result in pool.imap(GenotypeMatrix.fill_shared_memory_matrix_with_variants, zip(variant_chunks, itertools.repeat(shared_memory_unique_id))):
             i += 1
             logging.info("Done with %d variant chunks" % i)
 
         logging.info("Done with all variant chunks")
-        matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix")
+        matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix"+shared_memory_unique_id)
         return cls(matrix.matrix)
 
     def get_transitions_probs_between_variants(self, from_variant_id, to_variant_id):
@@ -367,8 +369,9 @@ class GenotypeMatrix:
         return most_similar, value
 
     @staticmethod
-    def fill_shared_memory_matrix_with_variants(variants):
-        matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix")
+    def fill_shared_memory_matrix_with_variants(data):
+        variants, shared_memory_unique_id = data
+        matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix"+shared_memory_unique_id)
         n_individuals = matrix.matrix.shape[0]
 
         for variant in variants:
