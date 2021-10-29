@@ -1,7 +1,7 @@
 import logging
 
 from obgraph.graph_construction import GraphConstructor as GraphConstructor
-from kage.variants import VcfVariants, VcfVariant
+from .variants import VcfVariants, VcfVariant
 
 
 def test_single_snp():

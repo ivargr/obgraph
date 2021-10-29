@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import numpy as np
-from kage.variants import VcfVariants
+from .variants import VcfVariants
 from collections import defaultdict
 from .mutable_graph import MutableGraph
 

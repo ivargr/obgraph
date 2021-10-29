@@ -1,5 +1,5 @@
 from obgraph import Graph
-from kage.analysis import VcfVariants, VcfVariant
+from obgraph.variants import VcfVariants, VcfVariant
 
 def test_find_insertion_nodes():
     g = Graph.from_dicts(

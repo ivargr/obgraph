@@ -1,4 +1,4 @@
-from kage.variants import VcfVariants
+from .variants import VcfVariants
 # Modifies a graph so that deletions/insertions has parallel dummy nodes
 import logging
 from itertools import product

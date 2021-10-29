@@ -1,4 +1,4 @@
-from kage.variants import VcfVariants
+from .variants import VcfVariants
 import logging
 from collections import defaultdict
 from .mutable_graph import MutableGraph
