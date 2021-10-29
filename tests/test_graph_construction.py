@@ -1,7 +1,7 @@
 import logging
 
 from obgraph.graph_construction import GraphConstructor as GraphConstructor
-from .variants import VcfVariants, VcfVariant
+from obgraph.variants import VcfVariants, VcfVariant
 
 
 def test_single_snp():
@@ -167,12 +167,12 @@ def test_messy_graph():
 
 
 test_insertion_with_snp_right_before()
-#test_single_snp()
-#test_single_deletion()
-#test_single_insertion()
-#test_double_deletion_with_snp_inside_first_deletion()
-#test_insertion_with_snp_right_before_and_right_after()
-#test_deletion_with_snp_right_before_and_right_after()
-#test_messy_graph()
-#test_deletion_with_snp_at_end()
+test_single_snp()
+test_single_deletion()
+test_single_insertion()
+test_double_deletion_with_snp_inside_first_deletion()
+test_insertion_with_snp_right_before_and_right_after()
+test_deletion_with_snp_right_before_and_right_after()
+test_messy_graph()
+test_deletion_with_snp_at_end()
 
