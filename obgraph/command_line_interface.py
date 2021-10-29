@@ -5,7 +5,7 @@ import sys
 import argparse
 from . import Graph
 from .util import add_indel_dummy_nodes
-from alignment_free_graph_genotyper.variants import VcfVariants
+from kage.variants import VcfVariants
 from .haplotype_nodes import HaplotypeToNodes, NodeToHaplotypes
 from .dummy_node_adder import DummyNodeAdder
 from .haplotype_nodes import NodeToHaplotypes
@@ -17,7 +17,7 @@ import numpy as np
 from . import cython_traversing
 from graph_kmer_index.shared_mem import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session
 from multiprocessing import Pool
-from alignment_free_graph_genotyper.cython_chain_genotyper import np_letter_sequence_to_numeric
+from kage.cython_chain_genotyper import np_letter_sequence_to_numeric
 import time
 #from .cython_traversing import traverse_graph_by_following_nodes
 

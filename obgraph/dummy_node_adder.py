@@ -1,4 +1,4 @@
-from alignment_free_graph_genotyper.variants import VcfVariants
+from kage.variants import VcfVariants
 # Modifies a graph so that deletions/insertions has parallel dummy nodes
 import logging
 from itertools import product

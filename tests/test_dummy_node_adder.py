@@ -1,5 +1,5 @@
 from obgraph import Graph, DummyNodeAdder
-from alignment_free_graph_genotyper.variants import VcfVariants, VcfVariant
+from kage.variants import VcfVariants, VcfVariant
 
 def test_simple_insertion():
     graph = Graph.from_dicts(

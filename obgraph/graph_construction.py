@@ -1,4 +1,4 @@
-from alignment_free_graph_genotyper.variants import VcfVariants
+from kage.variants import VcfVariants
 import logging
 from collections import defaultdict
 from .mutable_graph import MutableGraph

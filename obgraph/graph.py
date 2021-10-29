@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import numpy as np
-from alignment_free_graph_genotyper.variants import VcfVariants
+from kage.variants import VcfVariants
 from collections import defaultdict
 from .mutable_graph import MutableGraph
 

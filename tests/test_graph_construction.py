@@ -1,7 +1,7 @@
 import logging
 
 from obgraph.graph_construction import GraphConstructor as GraphConstructor
-from alignment_free_graph_genotyper.variants import VcfVariants, VcfVariant
+from kage.variants import VcfVariants, VcfVariant
 
 
 def test_single_snp():
