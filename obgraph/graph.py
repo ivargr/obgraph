@@ -110,6 +110,9 @@ class Graph:
 
         return indexes
 
+    def max_node_id(self):
+        return len(self.nodes)-1
+
     def get_numeric_node_sequences(self, nodes):
         logging.info("Getting sequence length")
         sequence_length = np.sum(self.nodes[nodes])

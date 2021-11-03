@@ -259,8 +259,14 @@ class GenotypeMatrix:
         self.matrix = matrix
 
     @classmethod
-    def from_variants(cls, variants, n_individuals, n_variants, n_threads=10, chunk_size=10000):
+    def from_variants(cls, variants, n_individuals=None, n_variants=None, n_threads=10, chunk_size=10000):
         shared_memory_unique_id = str(np.random.randint(0, 10e15))
+
+        if n_variants is None:
+            logging.warning("Finding n variants and n individuals by counting, may be slow")
+            n_variants = variants.n_variants()
+            n_individuals = variants.n_individuals()
+
         matrix = np.zeros((n_individuals, n_variants), dtype=np.uint8)
         matrix = cls(matrix)
         logging.info("Putting genotype matrix in shared memory")

@@ -150,7 +150,13 @@ class VcfVariant:
 
 
     def get_variant_allele_frequency(self):
-        return float(self.vcf_line.split("AF=")[1].split(";")[0])
+        try:
+            info_field = self.vcf_line.split("\t")[7]
+            af = float(info_field.split("AF=")[1].split(";")[0])
+        except IndexError:
+            logging.error("Could not get allele frequency from vcf line. VCF needs to contain an info column with AF= some allele frequency")
+            raise
+        return af
 
     def get_reference_allele_frequency(self):
         return 1 - self.get_variant_allele_frequency()
@@ -243,6 +249,13 @@ class VcfVariants:
 
     def get_header(self):
         return self._header_lines
+
+    def n_individuals(self):
+        return len(list(self.variant_genotypes[0].get_individuals_and_numeric_genotypes()))
+
+    def n_variants(self):
+        assert isinstance(self.variant_genotypes, list), "Only possible when variants is a list"
+        return len(self.variant_genotypes)
 
     def get_variant_by_line_number(self, line_number):
         return self.variant_genotypes[line_number]

@@ -27,16 +27,23 @@ class VariantToNodes:
         var_nodes = np.zeros(n_variants, dtype=np.uint32)
         ref_nodes = np.zeros(n_variants, dtype=np.uint32)
 
+        max_graph_node = graph.max_node_id()
         for i, variant in enumerate(variants):
             if i % 100000 == 0:
                 logging.info("%d variants processed" % i)
             try:
                 ref_node, var_node = graph.get_variant_nodes(variant)
             except VariantNotFoundException:
-                continue
+                logging.erro("Could not find variant, aborting")
+                raise
 
             var_nodes[i] = var_node
             ref_nodes[i] = ref_node
+
+            assert var_node <= max_graph_node
+            assert ref_node <= max_graph_node, "Found ref node %d which is not <= max graph node %d. Variant %s" % (ref_node, max_graph_node, variant)
+
+
 
         return cls(ref_nodes, var_nodes)
 
