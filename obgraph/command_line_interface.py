@@ -18,6 +18,7 @@ from . import cython_traversing
 from graph_kmer_index.shared_mem import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session
 from multiprocessing import Pool
 import time
+from itertools import repeat
 
 
 def get_numeric_node_sequence_single_thread(interval):
@@ -175,7 +176,7 @@ def run_argument_parser(args):
     subparser.add_argument("-N", "--node-to-haplotypes", required=False)
     subparser.add_argument("-o", "--out-file-name", required=True)
     subparser.add_argument("-m", "--n-variants", required=False, type=int)
-    subparser.add_argument("-t", "--n-threads", required=False, type=int, default=6, help="Number of threads used to fill matrix")
+    subparser.add_argument("-t", "--n-threads", required=False, type=int, default=32, help="Number of threads used to fill matrix")
     subparser.add_argument("-c", "--chunk-size", required=False, type=int, default=10000, help="Number of variants to process in each job")
     subparser.set_defaults(func=make_genotype_matrix)
 
@@ -380,6 +381,7 @@ def run_argument_parser(args):
     subparser.add_argument("-g", "--graph", required=True)
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.set_defaults(func=create_coordinate_converter)
+
 
     if len(args) == 0:
         parser.print_help()

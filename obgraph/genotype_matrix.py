@@ -256,6 +256,9 @@ class GenotypeMatrix:
     properties = {"matrix"}
 
     def __init__(self, matrix=None):
+        if matrix is not None:
+            logging.info("Type of matrix: %s" % matrix.dtype)
+            logging.info("Size of matrix: %3.f MB" % (int(matrix.nbytes)/1000000))
         self.matrix = matrix
 
     @classmethod
@@ -267,7 +270,8 @@ class GenotypeMatrix:
             n_variants = variants.n_variants()
             n_individuals = variants.n_individuals()
 
-        matrix = np.zeros((n_individuals, n_variants), dtype=np.uint8)
+        matrix = np.zeros((n_individuals, n_variants), dtype=np.uint8) + 4  # 4 is unknown genotype
+        print(matrix)
         matrix = cls(matrix)
         logging.info("Putting genotype matrix in shared memory")
         to_shared_memory(matrix, "genotype_matrix"+shared_memory_unique_id)
@@ -285,6 +289,27 @@ class GenotypeMatrix:
         logging.info("Done with all variant chunks")
         matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix"+shared_memory_unique_id)
         return cls(matrix.matrix)
+
+    def convert_to_other_format(self):
+        genotype_matrix = self.matrix.transpose()
+
+        # genotypes are 1, 2, 3 (0 for unknown, 1 for homo ref, 2 for homo alt and 3 for hetero), we want 0, 1, 2 for homo alt, hetero, homo ref
+        logging.info("Converting genotype matrix with size %s" % str(self.matrix.shape))
+        # 0, 1 => 2
+        # 2 => 0
+        # 3 => 1
+        new_genotype_matrix = np.zeros_like(genotype_matrix, dtype=np.int8)
+        idx = np.where(genotype_matrix == 0)[0]
+        #logging.info("Index size: %d" % (int(idx.nbytes)/1000000))
+        new_genotype_matrix[np.where(genotype_matrix == 0)] = -1
+        logging.info("done 1/4")
+        new_genotype_matrix[np.where(genotype_matrix == 1)] = 0
+        logging.info("done 2/4")
+        new_genotype_matrix[np.where(genotype_matrix == 2)] = 2
+        logging.info("done 3/4")
+        new_genotype_matrix[np.where(genotype_matrix == 3)] = 1
+        logging.info("done 4/4")
+        return GenotypeMatrix(new_genotype_matrix)
 
     def get_transitions_probs_between_variants(self, from_variant_id, to_variant_id):
         matrix = self.matrix
@@ -377,6 +402,7 @@ class GenotypeMatrix:
     @staticmethod
     def fill_shared_memory_matrix_with_variants(data):
         variants, shared_memory_unique_id = data
+        logging.info("Handling subset, using encoding version 2")
         matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix"+shared_memory_unique_id)
         n_individuals = matrix.matrix.shape[0]
 
@@ -385,7 +411,7 @@ class GenotypeMatrix:
             if variant_number % 10000 == 0:
                 logging.info("%d variants processeed" % variant_number)
 
-            for individual_id, genotype in variant.get_individuals_and_numeric_genotypes():
+            for individual_id, genotype in variant.get_individuals_and_numeric_genotypes(encoding_version="2"):
                 if individual_id >= n_individuals:
                     break
 

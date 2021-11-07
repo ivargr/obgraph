@@ -21,6 +21,9 @@ class VariantToNodes:
     def to_file(self, file_name):
         np.savez(file_name, ref_nodes=self.ref_nodes, var_nodes=self.var_nodes)
 
+    def slice(self, from_variant, to_variant):
+        return VariantToNodes(self.ref_nodes[from_variant:to_variant], self.var_nodes[from_variant:to_variant])
+
     @classmethod
     def from_graph_and_variants(cls, graph, variants):
         n_variants = len(variants)
