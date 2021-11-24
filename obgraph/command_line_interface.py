@@ -1,6 +1,6 @@
 import logging
-import pyximport; pyximport.install()
 logging.basicConfig(level=logging.INFO, format='%(module)s %(asctime)s %(levelname)s: %(message)s')
+import pyximport; pyximport.install()
 import sys
 import argparse
 from . import Graph
@@ -381,6 +381,30 @@ def run_argument_parser(args):
     subparser.add_argument("-g", "--graph", required=True)
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.set_defaults(func=create_coordinate_converter)
+
+    def intersect_vcfs(args):
+        variants1 = VcfVariants.from_vcf(args.vcf1)
+        variants2 = VcfVariants.from_vcf(args.vcf2)
+
+        new = variants1.intersect(variants2)
+        new.to_vcf_file(args.out_vcf, sample_name_output="")
+
+    subparser = subparsers.add_parser("intersect_vcfs")
+    subparser.add_argument("-a", "--vcf1", help="Vcf to intersect with other. Lines from this vcf will be kept")
+    subparser.add_argument("-b", "--vcf2")
+    subparser.add_argument("-o", "--out_vcf", help="Write resulting vcf to this file")
+    subparser.set_defaults(func=intersect_vcfs)
+
+
+    def make_numpy_variants(args):
+        from .numpy_variants import NumpyVariants
+        n = NumpyVariants.from_vcf(args.vcf)
+        n.to_file(args.out_file_name)
+
+    subparser = subparsers.add_parser("make_numpy_variants")
+    subparser.add_argument("-v", "--vcf", required=True)
+    subparser.add_argument("-o", "--out-file-name", required=True)
+    subparser.set_defaults(func=make_numpy_variants)
 
 
     if len(args) == 0:

@@ -3,6 +3,7 @@ import gzip
 import io
 import time
 import numpy as np
+import time
 
 def get_variant_type(vcf_line):
 
@@ -82,6 +83,7 @@ class VcfVariant:
             return 3
         else:
             raise Exception("Invalid genotype. Genotype is: %s" % g)
+
 
     def set_genotype(self, genotype, is_numeric=False):
         if is_numeric:
@@ -289,6 +291,7 @@ class VcfVariants:
 
     def get_chunks(self, chunk_size=5000, add_variants_to_list=None):
         out = []
+        prev_time = time.time()
         i = 0
         for variant_number, variant in enumerate(self.variant_genotypes):
             if variant_number % 100000 == 0:
@@ -298,9 +301,12 @@ class VcfVariants:
                 add_variants_to_list.append(variant)
             i += 1
             if i >= chunk_size and chunk_size > 0:
+                logging.info("Reading chunk of %d variants took %.5f sec" % (chunk_size, time.time()-prev_time))
+                prev_time = time.time()
                 yield out
                 out = []
                 i = 0
+        logging.info("Reading chunk of %d variants took %.5f sec" % (chunk_size, time.time() - prev_time))
         yield out
 
     def make_index(self):
@@ -348,6 +354,11 @@ class VcfVariants:
             self._position_index[chrom] = np.array([variant.position for variant in self if variant.chromosome == chrom])
             self._variants_by_chromosome[chrom] = [variant for variant in self if variant.chromosome == chrom]
         """
+
+    @staticmethod
+    def translate_numeric_genotypes_to_literal(genotypes):
+        numeric_to_literal = {0: "0/0", 1: "0/0", 2: "1/1", 3: "0/1"}
+        return [numeric_to_literal[g] for g in genotypes]
 
     def has_variant_left_of_variant(self, variant, window=31):
         other = self.get_variants_in_region(variant.chromosome, variant.position - window, variant.position)
@@ -404,16 +415,18 @@ class VcfVariants:
     def __next__(self):
         return self.variant_genotypes.__next__()
 
-    def to_vcf_file(self, file_name, add_individual_to_header="DONOR", ignore_homo_ref=False, add_header_lines=[], sample_name_output="DONOR"):
+    def to_vcf_file(self, file_name, add_individual_to_header="DONOR", ignore_homo_ref=False, add_header_lines=None, sample_name_output="DONOR"):
         logging.info("Writing to file %s" % file_name)
         with open(file_name, "w") as f:
             #f.write(self._header_lines)
             for header_line in self._header_lines.split("\n")[0:-1]:  # last element is empty
                 if header_line.startswith("#CHROM"):
-                    header_line += "\t" + sample_name_output
+                    if sample_name_output != "":
+                        header_line += "\t" + sample_name_output
                     # first write additional header line, the chrom-line should be the last one
-                    for additional_header_line in add_header_lines:
-                        f.writelines([additional_header_line + "\n"])
+                    if add_header_lines is not None:
+                        for additional_header_line in add_header_lines:
+                            f.writelines([additional_header_line + "\n"])
 
                 f.writelines([header_line + "\n"])
 
@@ -529,6 +542,15 @@ class VcfVariants:
 
     def copy(self):
         return VcfVariants([v.copy() for v in self])
+
+    def intersect(self, other_variants):
+        new_variants = []
+        for variant in self:
+            if other_variants.has_variant(variant):
+                new_variants.append(variant)
+
+        logging.info("Variants before intersection: %d Variants after: %d" % (len(self.variant_genotypes), len(new_variants)))
+        return VcfVariants(new_variants, skip_index=True, header_lines=self._header_lines)
 
     def print_variants_not_in_other(self, other):
         for variant in self:

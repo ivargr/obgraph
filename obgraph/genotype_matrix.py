@@ -50,14 +50,14 @@ class GenotypeTransitionProbabilities:
         return cls(data)
 
     def get_transition_probabilities(self, variant_id, from_genotype):
-        assert from_genotype in [1, 2, 3]
-        matrix_index = (from_genotype - 1) * 3
+        assert from_genotype in [0, 1, 2]
+        matrix_index = from_genotype * 3
         return self.matrix[matrix_index:matrix_index+3, variant_id]
 
     def get_transition_probability(self, variant_id, from_genotype, to_genotype):
-        assert from_genotype in [1, 2, 3]
-        assert to_genotype in [1, 2, 3]
-        matrix_index = (from_genotype-1)*3 + (to_genotype-1)
+        assert from_genotype in [0, 1, 2]
+        assert to_genotype in [1, 2, 0]
+        matrix_index = from_genotype*3 + to_genotype
         return self.matrix[matrix_index, variant_id]
 
     @staticmethod
@@ -314,8 +314,8 @@ class GenotypeMatrix:
     def get_transitions_probs_between_variants(self, from_variant_id, to_variant_id):
         matrix = self.matrix
         probs = np.zeros(3*3)  # the 9 probs will be stored in a flat array
-        for from_genotype in [1, 2, 3]:
-            for to_genotype in [1, 2, 3]:
+        for from_genotype in [0, 1, 2]:
+            for to_genotype in [0, 1, 2]:
                 genotype_indexes = np.where(matrix[:, from_variant_id] == from_genotype)[0]
                 n_total = len(genotype_indexes)
                 n_kept = len(np.where(matrix[genotype_indexes, to_variant_id] == to_genotype)[0])
@@ -325,13 +325,13 @@ class GenotypeMatrix:
                 else:
                     prob = n_kept / n_total
 
-                probs_index = 3*(from_genotype-1) + (to_genotype-1)
+                probs_index = 3*from_genotype + to_genotype
                 probs[probs_index] = prob
 
         return probs
 
     def get_individuals_with_genotype_at_variant(self, variant_id, genotype):
-        assert genotype in [1, 2, 3]
+        assert genotype in [0, 1, 2]
         return np.where(self.matrix[:, variant_id] == genotype)[0]
 
     def get_transition_prob_from_single_to_multiple_variants(self, from_variant_id, from_genotype, to_variant_ids_and_genotypes):
@@ -354,8 +354,8 @@ class GenotypeMatrix:
         return n_left / n_at_from_variant
 
     def get_transition_prob(self, from_variant_id, to_variant_id, from_genotype, to_genotype):
-        assert from_genotype in [1, 2, 3]
-        assert to_genotype in [1, 2, 3]
+        assert from_genotype in [0, 1, 2]
+        assert to_genotype in [0, 1, 2]
         matrix = self.matrix
         genotype_indexes = np.where(matrix[:, from_variant_id] == from_genotype)[0]
         n_total = len(genotype_indexes)
