@@ -49,14 +49,18 @@ class NumpyVariants:
     def from_vcf(cls, vcf_file_name):
         header = []
         variants = []
-        with open(vcf_file_name, "rb") as f:
+        with open(vcf_file_name, "r") as f:
             for i, line in enumerate(f):
-                line_decoded = line.decode("utf-8")
-                if line_decoded.startswith("#"):
-                    header.append(line_decoded)
+                #line_decoded = line.decode("utf-8")
+                if line.startswith("#"):
+                    header.append(line)
                 else:
                     # add byte line
-                    variants.append(line)
+                    # remove info field to save space
+                    l = line.split()
+                    l[7] = "."
+                    line = "\t".join(l)
+                    variants.append(str.encode(line))  # add as byte
 
                 if i % 10000 == 0:
                     logging.info("%d variants processed" % i)

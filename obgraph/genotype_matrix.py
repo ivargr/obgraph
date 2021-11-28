@@ -405,6 +405,7 @@ class GenotypeMatrix:
         logging.info("Handling subset, using encoding version 2")
         matrix = from_shared_memory(GenotypeMatrix, "genotype_matrix"+shared_memory_unique_id)
         n_individuals = matrix.matrix.shape[0]
+        logging.info("There are %d individuals" % n_individuals)
 
         for variant in variants:
             variant_number = variant.vcf_line_number

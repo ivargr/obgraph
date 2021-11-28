@@ -240,6 +240,8 @@ class VcfVariant:
         else:
             genotype = ""
 
+        #logging.info("Genotype is %s. Line length is %d (%s) " % (genotype, len(l), l))
+
         return cls(chromosome, position, ref_sequence, variant_sequence, genotype, get_variant_type(line), line, vcf_line_number=vcf_line_number)
 
     def get_reference_position_before_variant(self):
