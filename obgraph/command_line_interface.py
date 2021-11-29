@@ -14,15 +14,17 @@ from pyfaidx import Fasta
 from .graph_construction import GraphConstructor
 from .graph_merger import merge_graphs
 import numpy as np
-from . import cython_traversing
 from graph_kmer_index.shared_mem import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session
 from multiprocessing import Pool
 import time
 from itertools import repeat
+from graph_kmer_index.flat_kmers import letter_sequence_to_numeric
 
+
+def np_letter_sequence_to_numeric(letter_sequence):
+    return letter_sequence_to_numeric(letter_sequence.astype("|S1").view(np.int8)).astype(np.uint8)
 
 def get_numeric_node_sequence_single_thread(interval):
-    from kage.cython_chain_genotyper import np_letter_sequence_to_numeric
     from_pos, to_pos = interval
     start_time = time.time()
     graph = from_shared_memory(Graph, "graph_shared")

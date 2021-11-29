@@ -2,7 +2,7 @@ from setuptools import setup
 from distutils.core import setup
 
 setup(name='obgraph',
-      version='0.0.2',
+      version='0.0.5',
       description='obgraph',
       url='http://github.com/ivargr/obgraph',
       author='Ivar Grytten',
@@ -18,3 +18,10 @@ setup(name='obgraph',
             'console_scripts': ['obgraph=obgraph.command_line_interface:main']
       },
 )
+
+"""
+
+rm -rf dist
+python3 setup.py sdist
+twine upload --skip-existing dist/*
+"""
