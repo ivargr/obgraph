@@ -209,6 +209,20 @@ class VcfVariant:
 
         return numeric
 
+    def _numeric_genotype3(self, genotype_string):
+        numeric = 3
+        if genotype_string == "0|0":
+            numeric = 0
+        elif genotype_string == "1|1":
+            numeric = 2
+        elif genotype_string == "0|1" or genotype_string == "1|0":
+            numeric = 1
+        else:
+            logging.error("Could not parse genotype string %s" % genotype_string)
+            raise Exception("Unknown genotype")
+
+        return numeric
+
     def get_individuals_and_numeric_genotypes(self, encoding_version="1"):
         # genotypes are 1, 2, 3 for homo ref, homo alt and hetero
         for individual_id, genotype_string in enumerate(self.vcf_line.split()[9:]):
@@ -217,6 +231,8 @@ class VcfVariant:
                 numeric = self._numeric_genotype(genotype_string)
             elif encoding_version == "2":
                 numeric = self._numeric_genotype2(genotype_string)
+            elif encoding_version == "3":
+                numeric = self._numeric_genotype3(genotype_string)
             else:
                 raise Exception("Invalid encoding version. Must be 1 or 2")
             yield (individual_id, numeric)

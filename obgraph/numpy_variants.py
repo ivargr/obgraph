@@ -2,16 +2,16 @@ import numpy as np
 import logging
 
 
-
 class NumpyVariants:
+    properties = {"header", "variants"}
     def __init__(self, header, variants):
-        self._header = header
-        self._variants = variants
+        self.header = header
+        self.variants = variants
 
     def to_file(self, file_name):
         np.savez(file_name,
-            header=self._header,
-            variants=self._variants
+            header=self.header,
+            variants=self.variants
         )
 
     @classmethod
@@ -23,7 +23,7 @@ class NumpyVariants:
         logging.info("Writing to file %s" % file_name)
         with open(file_name, "w") as f:
             # f.write(self._header_lines)
-            for header_line in self._header:  # last element is empty
+            for header_line in self.header:  # last element is empty
                 if header_line.startswith("#CHROM"):
                     if sample_name != "":
                         header_line = header_line.strip() + "\t" + sample_name + "\n"
@@ -33,7 +33,7 @@ class NumpyVariants:
                 f.writelines([header_line])
 
             lines = []
-            for i, (variant, genotype) in enumerate(zip(self._variants, genotypes)):
+            for i, (variant, genotype) in enumerate(zip(self.variants, genotypes)):
                 if ignore_homo_ref and genotype == "0/0":
                     continue
 
