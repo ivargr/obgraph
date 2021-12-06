@@ -4,7 +4,7 @@ import logging
 from .graph import VariantNotFoundException, Graph
 import pickle
 from multiprocessing import Pool, Process
-from graph_kmer_index.shared_mem import to_shared_memory, from_shared_memory
+from shared_memory_wrapper.shared_memory import to_shared_memory, from_shared_memory
 from itertools import repeat
 from .traversing import traverse_graph_by_following_nodes
 import random

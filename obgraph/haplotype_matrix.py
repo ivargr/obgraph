@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from graph_kmer_index.shared_mem import to_shared_memory, from_shared_memory
+from shared_memory_wrapper.shared_memory import to_shared_memory, from_shared_memory
 from multiprocessing import Pool, Process
 import time
 

@@ -2,7 +2,7 @@ from setuptools import setup
 from distutils.core import setup
 
 setup(name='obgraph',
-      version='0.0.5',
+      version='0.0.7',
       description='obgraph',
       url='http://github.com/ivargr/obgraph',
       author='Ivar Grytten',
@@ -10,7 +10,7 @@ setup(name='obgraph',
       license='MIT',
       packages=["obgraph"],
       zip_safe=False,
-      install_requires=['numpy==1.20.3', 'tqdm', 'pathos', 'graph_kmer_index'],
+      install_requires=['numpy==1.20.3', 'tqdm', 'pathos', 'graph_kmer_index', 'shared_memory_wrapper'],
       classifiers=[
             'Programming Language :: Python :: 3'
       ],

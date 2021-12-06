@@ -2,7 +2,7 @@ import numpy as np
 import logging
 import time
 from .graph import VariantNotFoundException
-from graph_kmer_index.shared_mem import to_shared_memory, from_shared_memory, SingleSharedArray
+from shared_memory_wrapper.shared_memory import to_shared_memory, from_shared_memory, SingleSharedArray
 from multiprocessing import Pool, Process
 from .variant_to_nodes import VariantToNodes
 import itertools
