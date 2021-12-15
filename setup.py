@@ -2,7 +2,7 @@ from setuptools import setup
 from distutils.core import setup
 
 setup(name='obgraph',
-      version='0.0.7',
+      version='0.0.8',
       description='obgraph',
       url='http://github.com/ivargr/obgraph',
       author='Ivar Grytten',

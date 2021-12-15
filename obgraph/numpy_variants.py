@@ -21,6 +21,8 @@ class NumpyVariants:
 
     def to_vcf_with_genotypes(self, file_name, sample_name, genotypes, add_header_lines=None, ignore_homo_ref=False):
         logging.info("Writing to file %s" % file_name)
+        if ignore_homo_ref:
+            logging.info("Will not write variants with genotype 0/0")
         with open(file_name, "w") as f:
             # f.write(self._header_lines)
             for header_line in self.header:  # last element is empty
@@ -34,14 +36,15 @@ class NumpyVariants:
 
             lines = []
             for i, (variant, genotype) in enumerate(zip(self.variants, genotypes)):
+                genotype = genotype.decode("utf-8")
                 if ignore_homo_ref and genotype == "0/0":
                     continue
 
                 variant = variant.decode("utf-8").strip()
                 if i % 1000000 == 0:
-                    logging.info("%d variants written to file" % i)
+                    logging.info("%d variants written to file." % i)
 
-                lines.append("%s\t%s\n" % (variant, genotype.decode("utf-8")))
+                lines.append("%s\t%s\n" % (variant, genotype))
 
             f.writelines(lines)
 
