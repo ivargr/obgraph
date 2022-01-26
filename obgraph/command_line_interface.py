@@ -350,25 +350,6 @@ def run_argument_parser(args):
         graph = Graph.from_file(args.graph)
         logging.info("Converting to numeric")
         graph.set_numeric_node_sequences()
-        """
-        to_shared_memory(graph, "graph_shared")
-        pool = Pool(args.n_threads)
-
-        numeric_node_sequences = SingleSharedArray(np.zeros(len(graph.node_sequences), dtype=np.uint8))
-        to_shared_memory(numeric_node_sequences, "numeric_node_sequences")
-
-
-        intervals = list([int(i) for i in np.linspace(0, len(graph.node_sequences), args.n_threads+1)])
-        intervals = [(from_pos, to_pos) for from_pos, to_pos in zip(intervals[0:-1], intervals[1:])]
-        logging.info("Intervals: %s" % intervals)
-
-        for from_pos, to_pos in pool.imap(get_numeric_node_sequence_single_thread, intervals):
-            logging.info("Done processing interval %d-%d. Inserting into full array" % (from_pos, to_pos))
-
-        logging.info("Done with all intervals. Saving new graph")
-        numeric_node_sequences = from_shared_memory(SingleSharedArray, "numeric_node_sequences")
-        graph.numeric_node_sequences = numeric_node_sequences.array
-        """
         graph.to_file(args.graph)
         logging.info("Saved to the same file %s" % args.graph)
 
