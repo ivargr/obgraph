@@ -10,6 +10,11 @@ from .mutable_graph import MutableGraph
 class VariantNotFoundException(Exception):
     pass
 
+def remap_array(array, from_values, to_values):
+    index = np.digitize(array.ravel(), from_values, right=True)
+    return to_values[index].reshape(array.shape)
+
+
 class Graph:
     properties = {
         "nodes", "node_to_sequence_index", "node_sequences", "node_to_edge_index", "node_to_n_edges", "edges",
@@ -58,14 +63,23 @@ class Graph:
 
         return True
 
+    def set_numeric_node_sequences(self):
+        sequences_as_byte_values = self.node_sequences.astype("|S1").view(np.int8)
+        # from byte values
+        from_values = np.array([65, 67, 71, 84, 97, 99, 103, 116], dtype=np.uint64)  # NB: Must be increasing
+        # to internal base values for a, c, t, g
+        to_values = np.array([0, 1, 3, 2, 0, 1, 3, 2], dtype=np.uint64)
+        self.numeric_node_sequences = remap_array(sequences_as_byte_values, from_values, to_values)
+
     def get_all_nodes(self):
         return np.union1d(np.where(self.nodes != 0)[0], np.where(self.node_to_n_edges > 0)[0])
         # This does not return nodes of size 0
         #return np.where(self.nodes != 0)[0]
 
     def __str__(self):
-        mutable_graph = self.to_mutable_graph()
-        return str(mutable_graph)
+        #mutable_graph = self.to_mutable_graph()
+        #return str(mutable_graph)
+        return "Obgraph"
 
     def __repr__(self):
         return self.__str__()
@@ -83,6 +97,11 @@ class Graph:
 
     def get_node_size(self, node):
         return self.nodes[node]
+
+    def get_node_allele_frequencies(self, nodes):
+        if self.allele_frequencies is None:
+            return np.ones(len(nodes))
+        return self.allele_frequencies[nodes]
 
     def get_node_allele_frequency(self, node):
         if self.allele_frequencies is None:
@@ -112,6 +131,26 @@ class Graph:
 
     def max_node_id(self):
         return len(self.nodes)-1
+
+    def get_numeric_node_sequence(self, node):
+        if self.get_node_size(node) == 0:
+            return np.array([-1])
+
+        index_pos = self.node_to_sequence_index[node]
+        return self.numeric_node_sequences[index_pos:index_pos+self.get_node_size(node)]
+
+    def get_numeric_base_sequence(self, node, offset):
+        assert len(self.numeric_node_sequences) > 0
+        if self.get_node_size(node) == 0:
+            return -1
+
+        try:
+            return self.numeric_node_sequences[int(self.node_to_sequence_index[int(node)]+offset)]
+        except IndexError:
+            logging.error("Error while fetching sequences for node %d and offset %d" % (node, offset))
+            logging.error("Node to sequence index: %s" % self.node_to_sequence_index)
+            logging.error("Numeric node sequences: %s" % self.numeric_node_sequences)
+            raise
 
     def get_numeric_node_sequences(self, nodes):
         logging.info("Getting sequence length")
@@ -723,6 +762,19 @@ class Graph:
             nodes[haplotype, i] = current_node
 
         return nodes
+
+    def get_reverse_edges_hashtable(self):
+        from npstructures.numpylist import NumpyList
+        from npstructures import HashTable
+        from_nodes = NumpyList(dtype=np.uint32)
+        to_nodes = NumpyList(dtype=np.uint32)
+
+        for node in self.get_all_nodes():
+            for edge in self.get_edges(node):
+                from_nodes.append(edge)
+                to_nodes.append(node)
+
+        return HashTable(from_nodes.get_nparray(), to_nodes.get_nparray())
 
     def get_reverse_edges_dict(self):
         reverse_edges = defaultdict(list)

@@ -14,7 +14,7 @@ from pyfaidx import Fasta
 from .graph_construction import GraphConstructor
 from .graph_merger import merge_graphs
 import numpy as np
-from shared_memory_wrapper.shared_memory import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session
+from shared_memory_wrapper.shared_memory import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session, to_file, from_file
 from multiprocessing import Pool
 import time
 from itertools import repeat
@@ -348,6 +348,9 @@ def run_argument_parser(args):
 
     def set_numeric_node_sequences(args):
         graph = Graph.from_file(args.graph)
+        logging.info("Converting to numeric")
+        graph.set_numeric_node_sequences()
+        """
         to_shared_memory(graph, "graph_shared")
         pool = Pool(args.n_threads)
 
@@ -365,6 +368,7 @@ def run_argument_parser(args):
         logging.info("Done with all intervals. Saving new graph")
         numeric_node_sequences = from_shared_memory(SingleSharedArray, "numeric_node_sequences")
         graph.numeric_node_sequences = numeric_node_sequences.array
+        """
         graph.to_file(args.graph)
         logging.info("Saved to the same file %s" % args.graph)
 
@@ -407,6 +411,19 @@ def run_argument_parser(args):
     subparser.add_argument("-v", "--vcf", required=True)
     subparser.add_argument("-o", "--out-file-name", required=True)
     subparser.set_defaults(func=make_numpy_variants)
+
+
+    def make_position_id(args):
+        from .position_id import PositionId
+        graph = Graph.from_file(args.graph)
+        position_id = PositionId.from_graph(graph)
+        to_file(position_id, args.out_file_name)
+
+
+    subparser = subparsers.add_parser("make_position_id")
+    subparser.add_argument("-g", "--graph", required=True)
+    subparser.add_argument("-o", "--out-file-name", required=True)
+    subparser.set_defaults(func=make_position_id)
 
 
     if len(args) == 0:
