@@ -67,6 +67,7 @@ def test_single_deletion():
     assert graph.linear_ref_nodes() == set([1, 2, 3])
 
 
+
 def test_single_insertion():
     reference = "AATTGG"
 
@@ -81,6 +82,25 @@ def test_single_insertion():
     assert list(graph.get_edges(1)) == [2, 5]
     assert list(graph.get_edges(5)) == [3]
     assert list(graph.get_edges(3)) == []
+
+
+def test_single_substitution():
+    reference = "AATTGG"
+
+    variants = VcfVariants(
+        [VcfVariant(1, 2, "ATT", "CC", type="SUBSTITUTION")]
+    )
+
+    constructor = GraphConstructor(reference, variants)
+    graph = constructor.get_graph_with_dummy_nodes()
+    assert graph.get_node_sequence(1) == "AA"
+    assert graph.get_node_sequence(2) == "CC"
+    assert graph.get_node_sequence(3) == "TT"
+    assert graph.get_node_sequence(4) == "GG"
+    assert list(graph.get_edges(1)) == [2, 3]
+    assert list(graph.get_edges(2)) == [4]
+    assert list(graph.get_edges(3)) == [4]
+
 
 def test_double_deletion_with_snp_inside_first_deletion():
 
@@ -166,6 +186,7 @@ def test_messy_graph():
     assert list(graph.get_edges(9)) == [5, 10]
 
 
+test_single_substitution()
 test_insertion_with_snp_right_before()
 test_single_snp()
 test_single_deletion()
@@ -175,4 +196,3 @@ test_insertion_with_snp_right_before_and_right_after()
 test_deletion_with_snp_right_before_and_right_after()
 test_messy_graph()
 test_deletion_with_snp_at_end()
-

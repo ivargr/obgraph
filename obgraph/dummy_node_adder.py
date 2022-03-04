@@ -26,7 +26,7 @@ class DummyNodeAdder:
             if i % 10000 == 0:
                 logging.info("%d variants processed" % i)
 
-            if variant.type == "SNP":
+            if variant.type == "SNP" or variant.type == "SUBSTITUTION":
                 continue
 
             try:
@@ -56,6 +56,8 @@ class DummyNodeAdder:
         if variant.type == "DELETION":
             inserted_sequence = variant.ref_sequence[1:]
         elif variant.type == "INSERTION":
+            inserted_sequence = variant.variant_sequence[1:]
+        elif variant.type == "SUBSTITUTION":
             inserted_sequence = variant.variant_sequence[1:]
         else:
             raise Exception("Unsupported variant")

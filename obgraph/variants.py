@@ -12,9 +12,11 @@ def get_variant_type(vcf_line):
         return "SNP"
     elif "VT=SNP" in vcf_line:
         return "SNP"
-    elif len(l[3]) > len(l[4]):
+    elif len(l[3]) > 1 and len(l[4]) > 1:
+        return "SUBSTITUTION"
+    elif len(l[3]) > len(l[4]) and len(l[4]) == 1:
         return "DELETION"
-    elif len(l[3]) < len(l[4]):
+    elif len(l[3]) < len(l[4]) and len(l[3]) == 1:
         return "INSERTION"
     elif "VT=INDEL" in vcf_line:
         if len(l[3]) > len(l[4]):
@@ -121,8 +123,10 @@ class VcfVariant:
             return 1
         elif self.type == "DELETION":
             return len(self.get_deleted_sequence())
-        elif self.type == "INSERTION":
+        elif self.type == "INSERTION" or self.type == "SUBSTITUTION":
             return len(self.variant_sequence) - 1
+        else:
+            raise Exception("Variant type %s not implemented" % self.type)
 
     def __repr__(self):
         return self.__str__()
@@ -280,6 +284,10 @@ class VcfVariant:
             return start + 1
         elif self.type == "DELETION":
             return start + len(self.ref_sequence) - 1 + 1
+        elif self.type == "SUBSTITUTION":
+            return start + len(self.ref_sequence)
+        else:
+            raise Exception("Not able to get ref pos after variant of type %s" % self.type)
 
 
 class VcfVariants:
