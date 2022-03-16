@@ -530,14 +530,32 @@ class Graph:
         return cls.from_flat_nodes_and_edges(node_ids, node_sequences, node_sizes, edges_from, edges_to, linear_ref_nodes, chromosome_start_nodes)
 
 
-    def get_snp_nodes(self, ref_offset, variant_bases, chromosome=1):
+    def get_snp_nodes(self, ref_offset, reference_bases, variant_bases, chromosome=1):
         node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
         node_offset = self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
-        assert node_offset == 0, "Node offset is 0 at ref_offset %d. Variant bases: %s. Chromosome %d" % (ref_offset, variant_bases, chromosome)
+        assert node_offset == 0, "Node offset is %d at ref_offset %d. Variant bases: %s. Chromosome %d" % (node_offset, ref_offset, variant_bases, chromosome)
         prev_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset - 1)
 
         _, possible_snp_nodes = self.find_nodes_from_node_that_matches_sequence(prev_node, variant_bases, [], [])
         assert len(possible_snp_nodes) > 0, "Did not find any possible snp nodes for variant at ref offset %s with variant sequence %s" % (ref_offset, variant_bases)
+
+        next_ref_pos = ref_offset + len(reference_bases)
+        next_ref_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, next_ref_pos)
+
+        # attempt at simpler approach. Should only be one non-linear-ref-node that matches sequence?
+        """
+        possible_snp_nodes = [n[-1] for n in possible_snp_nodes if not self.is_linear_ref_node_or_linear_ref_dummy_node(n[-1])]
+        # only keep nodes 
+
+        if len(possible_snp_nodes) != 1:
+            logging.info("Multiple or no nodes (%s) nodes with sequence %s from node %d" % (possible_snp_nodes, variant_bases, prev_node))
+            logging.info(str([(node, self.get_node_sequence(node)) for node in possible_snp_nodes]))
+            logging.info("ref node is %d" % node)
+            logging.info("Ref offset is %d" % ref_offset)
+            raise Exception("Error")
+
+        return node, possible_snp_nodes[0]
+        """
 
         for possible_snp_node in possible_snp_nodes:
             # Not true if deletion before snp
@@ -546,12 +564,23 @@ class Graph:
             potential_next = possible_snp_node[-1]  # Get last node, this will be the snp node if there are more nodes
             assert self.get_node_size(potential_next) > 0
             # Also require that this node shares next node with our ref snp node, if not this could be a false match against an indel node
+            # this assumption does not work for subsitutions
+            # why does this not work for substitutions??
             next_from_snp_node = self.get_edges(node)
             if len([n for n in next_from_snp_node if n in self.get_edges(potential_next)]) > 0:
                 return node, potential_next
 
-        logging.error("Could not parse substitution at offset %d with bases %s" % (ref_offset, variant_bases))
-        logging.error("Next nodes from snp node: %d" % next_from_snp_node)
+            # logging.info("Node after deletion: %d" % next_ref_node)
+            if self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, next_ref_pos) != 0:
+                raise Exception("Could not find next ref node")
+
+            #logging.info("Next ref node: %d. Edges from potential: %s" % (next_ref_node, str(self.get_edges(potential_next))))
+            if next_ref_node in self.get_edges(potential_next):
+                return node, potential_next
+
+        logging.error("Could not parse substitution at offset %d with bases %s. Next ref pos is %d. Next ref node is %d" % (ref_offset, variant_bases, next_ref_pos, next_ref_node))
+        logging.info("Reference node for snp/subsitution is %d" % node)
+        logging.error("Possible nodes are: %s" % possible_snp_nodes)
         raise Exception("Parseerrror")
 
     def get_deletion_nodes(self, ref_offset, deletion_length, deleted_sequence, chromosome=1):
@@ -673,7 +702,9 @@ class Graph:
 
     def get_variant_nodes(self, variant):
         if variant.type == "SNP":
-            return self.get_snp_nodes(variant.position-1, variant.variant_sequence, variant.chromosome)
+            return self.get_snp_nodes(variant.position-1, variant.get_reference_sequence(), variant.variant_sequence, variant.chromosome)
+        elif variant.type == "SUBSTITUTION":
+            return self.get_snp_nodes(variant.position, variant.get_reference_sequence(), variant.get_variant_sequence(), variant.chromosome)
         elif variant.type == "DELETION":
             return self.get_deletion_nodes(variant.position-1, len(variant.ref_sequence)-1, variant.get_deleted_sequence(), variant.chromosome)
         elif variant.type == "INSERTION":
