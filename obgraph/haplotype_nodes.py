@@ -29,6 +29,9 @@ class HaplotypeToNodes:
     def to_file(self, file_name):
         np.savez(file_name, index=self._haplotype_to_index, n=self._haplotype_to_n_nodes, haplotypes=self._nodes)
 
+    def n_haplotypes(self):
+        return len(self._haplotype_to_index)
+
     def get_nodes(self, haplotype):
         assert type(haplotype) == int
         index = self._haplotype_to_index[haplotype]
@@ -205,9 +208,11 @@ class HaplotypeToNodes:
         flat_nodes = []
         flat_haplotypes = []
 
+        logging.info("Making pool")
         pool = Pool(n_threads)
-        shared_memory_graph_name = "graph_shared"
-        to_shared_memory(graph, shared_memory_graph_name)
+        logging.info("Made pool")
+        shared_memory_graph_name = to_shared_memory(graph)
+        logging.info("Put graph in shared memory")
 
         for haplotypes, nodes in pool.starmap(HaplotypeToNodes._multiprocess_wrapper, zip(repeat(shared_memory_graph_name), variants.get_chunks(chunk_size=1000), repeat(limit_to_n_haplotypes))):
             logging.info("Done with 1 iteration")
