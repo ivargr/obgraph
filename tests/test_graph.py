@@ -1,4 +1,7 @@
+import logging
+logging.basicConfig(level=logging.INFO)
 from obgraph import Graph
+import numpy as np
 
 
 def test_from_dicts():
@@ -15,9 +18,36 @@ def test_from_dicts():
     assert g.get_node_size(3) == 1
     assert g.get_node_size(4) == 3
 
+    assert g.get_node_sequence(2) == "A"
+
     assert list(g.get_edges(1)) == [2, 3]
 
-    assert g.get_node_sequence(2) == "A"
+
+    assert list(g.get_numeric_node_sequence(2)) == [0]
+
+    print(g.get_numeric_node_sequence(np.array([1, 2, 3, 4])))
+    assert list(g.get_numeric_node_sequences(np.array([1, 2, 3, 4]))) == [0, 1, 2, 3, 0, 3, 0, 0, 0]
+
+    assert g.get_node_at_ref_offset(0) == 1
+    assert g.get_node_at_ref_offset(3) == 1
+    assert g.get_node_at_ref_offset(4) == 2
+    assert g.get_node_at_ref_offset(5) == 4
+
+    assert g.get_ref_offset_at_node(4) == 5
+    assert g.get_ref_offset_at_node(2) == 4
+
+
+def test_sparse_graph():
+    g = Graph.from_dicts(
+        {1: "AGGG", 4: "CACCT"},
+        {1: [4]},
+        [1, 4]
+    )
+    assert list(g.get_edges(1)) == [4]
+    assert g.get_node_at_ref_offset(4) == 4
+    assert g.get_nodes_sequence([1, 4]) == "AGGGCACCT"
 
 
 test_from_dicts()
+test_sparse_graph()
+

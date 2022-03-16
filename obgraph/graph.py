@@ -6,6 +6,9 @@ import numpy as np
 from .variants import VcfVariants
 from collections import defaultdict
 from .mutable_graph import MutableGraph
+from dataclasses import dataclass
+from npstructures import RaggedArray
+from shared_memory_wrapper import to_file, from_file
 
 class VariantNotFoundException(Exception):
     pass
@@ -15,21 +18,28 @@ def remap_array(array, from_values, to_values):
     return to_values[index].reshape(array.shape)
 
 
-class Graph:
-    properties = {
-        "nodes", "node_to_sequence_index", "node_sequences", "node_to_edge_index", "node_to_n_edges", "edges",
-        "node_to_ref_offset", "ref_offset_to_node", "chromosome_start_nodes", "linear_ref_nodes_index", "allele_frequencies", "numeric_node_sequences"
-    }
+def convert_sequence_array_to_numeric(sequence):
+    assert type(sequence) == np.ndarray
+    sequences_as_byte_values = sequence.astype("|S1").view(np.int8)
+    # from byte values
+    from_values = np.array([65, 67, 71, 84, 97, 99, 103, 116], dtype=np.uint64)  # NB: Must be increasing
+    # to internal base values for a, c, t, g
+    to_values = np.array([0, 1, 3, 2, 0, 1, 3, 2], dtype=np.uint64)
+    return remap_array(sequences_as_byte_values, from_values, to_values).astype(np.uint8)
 
-    def __init__(self, nodes=None, node_to_sequence_index=None, node_sequences=None, node_to_edge_index=None, node_to_n_edges=None, edges=None,
+numeric_to_letter_sequence = np.array(["A", "C", "T", "G"])
+
+class Graph:
+    def __init__(self, nodes,
+                 sequences: RaggedArray,
+                 edges: RaggedArray,
                  node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None, linear_ref_nodes_index=None,
                  numeric_node_sequences=None, linear_ref_nodes_and_dummy_nodes_index=None):
         self.nodes = nodes
-        self.node_to_sequence_index = node_to_sequence_index
-        self.node_sequences = node_sequences
-        self.node_to_edge_index = node_to_edge_index
-        self.node_to_n_edges = node_to_n_edges
         self.edges = edges
+        self.sequences = sequences
+
+
         self.node_to_ref_offset = node_to_ref_offset
         self.ref_offset_to_node = ref_offset_to_node
         self._linear_ref_nodes_cache = None
@@ -64,6 +74,7 @@ class Graph:
         return True
 
     def set_numeric_node_sequences(self):
+        raise Exception("Unsupported")
         sequences_as_byte_values = self.node_sequences.astype("|S1").view(np.int8)
         # from byte values
         from_values = np.array([65, 67, 71, 84, 97, 99, 103, 116], dtype=np.uint64)  # NB: Must be increasing
@@ -72,7 +83,8 @@ class Graph:
         self.numeric_node_sequences = remap_array(sequences_as_byte_values, from_values, to_values)
 
     def get_all_nodes(self):
-        return np.union1d(np.where(self.nodes != 0)[0], np.where(self.node_to_n_edges > 0)[0])
+        node_to_n_edges = self.edges.shape.lengths   # a bit hacky, accessing length of RaggedShape in npstructures
+        return np.union1d(np.where(self.nodes != 0)[0], np.where(node_to_n_edges > 0)[0])
         # This does not return nodes of size 0
         #return np.where(self.nodes != 0)[0]
 
@@ -109,10 +121,11 @@ class Graph:
         return self.allele_frequencies[node]
 
     def get_node_subsequence(self, node, start, end):
-        index_position = self.node_to_sequence_index[node]
-        return ''.join(self.node_sequences[int(index_position+start):int(index_position+end)])
+        return self.get_node_sequence(node)[start:end]
 
     def get_node_sequence(self, node):
+        return ''.join(numeric_to_letter_sequence[self.sequences[node]])
+
         index_position = self.node_to_sequence_index[node]
         return ''.join(self.node_sequences[index_position:index_position+self.nodes[node]])
 
@@ -133,6 +146,8 @@ class Graph:
         return len(self.nodes)-1
 
     def get_numeric_node_sequence(self, node):
+        return self.sequences[node]
+
         if self.get_node_size(node) == 0:
             return np.array([-1])
 
@@ -140,12 +155,12 @@ class Graph:
         return self.numeric_node_sequences[index_pos:index_pos+self.get_node_size(node)]
 
     def get_numeric_base_sequence(self, node, offset):
-        assert len(self.numeric_node_sequences) > 0
         if self.get_node_size(node) == 0:
             return -1
 
         try:
-            return self.numeric_node_sequences[int(self.node_to_sequence_index[int(node)]+offset)]
+            return self.get_numeric_node_sequence(int(node))[offset]
+            #return self.numeric_node_sequences[int(self.node_to_sequence_index[int(node)]+offset)]
         except IndexError:
             logging.error("Error while fetching sequences for node %d and offset %d" % (node, offset))
             logging.error("Node to sequence index: %s" % self.node_to_sequence_index)
@@ -153,31 +168,18 @@ class Graph:
             raise
 
     def get_numeric_node_sequences(self, nodes):
-        logging.info("Getting sequence length")
-        sequence_length = np.sum(self.nodes[nodes])
-        numeric_sequence = np.zeros(sequence_length, dtype=np.uint8)
-
-        i = 0
-        for node in nodes:
-            node_size = self.nodes[node]
-            index_position = self.node_to_sequence_index[node]
-            numeric_sequence[i:i + node_size] = self.numeric_node_sequences[index_position:index_position+node_size]
-            i += self.nodes[node]
-
-        return numeric_sequence
+        return self.sequences[nodes].ravel()
 
     def get_nodes_sequences2(self, nodes):
+        raise NotImplementedError()
         return ''.join(self.node_sequences[self.get_nodes_sequence_index_positions(nodes)])
 
     def get_nodes_sequence(self, nodes):
         sequences = []
 
         for node in nodes:
-            index_position = self.node_to_sequence_index[node]
-            sequences.extend(self.node_sequences[index_position:index_position+self.nodes[node]])
+            sequences.extend(self.get_node_sequence(node))
 
-        #for node in nodes:
-        #    sequences.append(self.get_node_sequence(node))
         return ''.join(sequences)
 
     def get_node_offset_at_chromosome_and_chromosome_offset(self, chromosome, offset):
@@ -204,16 +206,10 @@ class Graph:
         return self.get_node_at_ref_offset(real_offset)
 
     def get_edges(self, node):
-        if node >= len(self.node_to_edge_index):
+        if node >= len(self.edges):
             return []
 
-        index = self.node_to_edge_index[node]
-        n_edges = self.node_to_n_edges[node]
-
-        if n_edges == 0:
-            return []
-
-        return self.edges[index:index+n_edges]
+        return self.edges[node]
 
     def linear_ref_nodes(self):
         if self._linear_ref_nodes_cache is not None:
@@ -275,70 +271,11 @@ class Graph:
         return ref_offset - offset_at_node
 
     def to_file(self, file_name):
-        allele_frequencies = self.allele_frequencies
-        if allele_frequencies is None:
-            allele_frequencies = np.zeros(0)
-
-        numeric_node_sequences = self.numeric_node_sequences
-        if numeric_node_sequences is None:
-            numeric_node_sequences = np.zeros(0)
-
-        np.savez(file_name,
-                 nodes=self.nodes,
-                 node_to_sequence_index=self.node_to_sequence_index,
-                 node_sequences=self.node_sequences,
-                 node_to_edge_index=self.node_to_edge_index,
-                 node_to_n_edges=self.node_to_n_edges,
-                 edges=self.edges,
-                 node_to_ref_offset=self.node_to_ref_offset,
-                 ref_offset_to_node=self.ref_offset_to_node,
-                 chromosome_start_nodes=self.chromosome_start_nodes,
-                 allele_frequencies=allele_frequencies,
-                 linear_ref_nodes_index=self.linear_ref_nodes_index,
-                 numeric_node_sequences=numeric_node_sequences,
-                 linear_ref_nodes_and_dummy_nodes_index=self.linear_ref_nodes_and_dummy_nodes_index
-                 )
-
-        logging.info("Saved to file %s" % file_name)
+        return to_file(self, file_name)
 
     @classmethod
     def from_file(cls, file_name):
-        logging.info("Reading file from %s" % file_name)
-        try:
-            data = np.load(file_name)
-        except FileNotFoundError:
-            data = np.load(file_name + ".npz")
-
-        allele_frequencies = None
-        if "allele_frequencies" in data:
-            allele_frequencies = data["allele_frequencies"]
-
-        linear_ref_nodes_index = None
-        if "linear_ref_nodes_index" in data:
-            linear_ref_nodes_index = data["linear_ref_nodes_index"]
-
-        linear_ref_nodes_and_dummy_nodes_index = None
-        if "linear_ref_nodes_and_dummy_nodes_index" in data:
-            linear_ref_nodes_and_dummy_nodes_index = data["linear_ref_nodes_and_dummy_nodes_index"]
-
-        numeric_node_sequences = None
-        if "numeric_node_sequences" in data:
-            numeric_node_sequences = data["numeric_node_sequences"]
-
-        return cls(data["nodes"],
-                   data["node_to_sequence_index"],
-                   data["node_sequences"],
-                   data["node_to_edge_index"],
-                   data["node_to_n_edges"],
-                   data["edges"],
-                   data["node_to_ref_offset"],
-                   data["ref_offset_to_node"],
-                   data["chromosome_start_nodes"],
-                   allele_frequencies,
-                   linear_ref_nodes_index,
-                   numeric_node_sequences,
-                   linear_ref_nodes_and_dummy_nodes_index)
-
+        return from_file(file_name)
 
     def get_flat_graph(self):
         node_ids = list(np.where(self.nodes > 0)[0])
@@ -361,68 +298,98 @@ class Graph:
     def from_dicts(cls, node_sequences, edges, linear_ref_nodes):
         assert linear_ref_nodes is not None
         logging.info("Making graph from dicts")
-        nodes = list(node_sequences.keys())
-        logging.info("Making sequences")
-        node_sequences = [list(node_sequences[node]) for node in nodes]
-        node_sizes = [len(seq) for seq in node_sequences]
-        from_nodes = []
-        to_nodes = []
-        i = 0
-        for from_node, to_nodes_edges in edges.items():
-            if i % 100000 == 0:
-                logging.info("%d nodes processed" % i)
-            for to_node in to_nodes_edges:
-                from_nodes.append(from_node)
-                to_nodes.append(to_node)
+        nodes = np.sort(list(node_sequences.keys())).astype(np.uint32)
+        max_node = nodes[-1]
 
-            i += 1
+        logging.info("Making sequences")
+        node_sequences = np.array([node_sequences[node] for node in nodes])
+        node_sizes = [len(seq) for seq in node_sequences]
+        node_sizes_array = np.zeros(nodes[-1]+1, dtype=np.uint32)
+        node_sizes_array[nodes] = node_sizes
+        nodes = node_sizes_array
+
+        #from_nodes = []
+
+        to_nodes = []
+        n_edges = []
+
+        to_nodes = np.concatenate([edges[n] for n in range(max_node+1) if n in edges]).astype(np.uint32)
+        n_edges = np.array([len(edges[n]) if n in edges else 0 for n in range(max_node+1)], dtype=np.uint8)
 
         to_nodes_set = set(to_nodes)
         logging.info("Done preparing data from dicts")
         logging.info("There are %d node sequences" % len(node_sequences))
-        return Graph.from_flat_nodes_and_edges(nodes, node_sequences, node_sizes, np.array(from_nodes), np.array(to_nodes), np.array(linear_ref_nodes), [node for node in nodes if node not in to_nodes_set])
+
+        # sequences
+        sequence = np.array(list(''.join(node_sequences)))
+        numeric_sequence = convert_sequence_array_to_numeric(sequence)
+        sequences = RaggedArray(numeric_sequence, nodes, dtype=np.uint8)
+
+        # linear ref index
+        node_to_ref_offset = np.zeros(max_node + 1, np.uint64)
+        ref_node_sizes = nodes[linear_ref_nodes]
+
+        # print("Ref node sizes: %s"  % ref_node_sizes)
+        ref_offsets = np.cumsum(ref_node_sizes)
+        print("Ref offsets: %s"  % ref_offsets)
+        node_to_ref_offset[linear_ref_nodes[1:]] = ref_offsets[:-1]
+
+        # Find last node to add to linear ref size
+        last_node_in_graph = np.argmax(node_to_ref_offset)
+        last_node_size = nodes[last_node_in_graph]
+        logging.info("Last node in graph is %d with size %d" % (last_node_in_graph, last_node_size))
+
+        ref_offset_to_node = np.zeros(int(np.max(node_to_ref_offset)) + last_node_size)
+        index_positions = np.cumsum(ref_node_sizes)[:-1]
+        # logging.info("INdex positions: %s" % index_positions)
+        # logging.info("Linear ref nodes: %s" % linear_ref_nodes)
+        # logging.info("Diff linear ref nodes: %s" % np.diff(linear_ref_nodes))
+        ref_offset_to_node[index_positions] = np.diff(linear_ref_nodes)
+        ref_offset_to_node[0] = linear_ref_nodes[0]
+        # logging.info("Ref offset to node 1: %s" % ref_offset_to_node)
+        ref_offset_to_node = np.cumsum(ref_offset_to_node, dtype=np.uint32)
+
+        chromosome_start_nodes = [node for node in nodes if node not in to_nodes_set]
+
+        print("Ref offset to node: %s" % ref_offset_to_node)
+
+        return Graph(node_sizes_array, sequences, RaggedArray(to_nodes, n_edges, dtype=np.uint32), node_to_ref_offset, ref_offset_to_node, chromosome_start_nodes)
+        #return Graph.from_flat_nodes_and_edges(nodes, node_sequences, node_sizes, to_nodes, n_edges, np.array(linear_ref_nodes))
 
     @classmethod
-    def from_flat_nodes_and_edges(cls, node_ids, node_sequences, node_sizes, from_nodes, to_nodes, linear_ref_nodes, chromosome_start_nodes):
+    def from_flat_nodes_and_edges(cls, node_ids, node_sequences, node_sizes, to_nodes, n_edges, linear_ref_nodes, chromosome_start_nodes):
+        raise Exception("This method has been removed.")
+
         logging.info("Chromosome start nodes are: %s" % chromosome_start_nodes)
 
-        """
-        logging.info("Asserting linear ref nodes are not empty")
-        for i, node in enumerate(node_ids):
-            size = node_sizes[i]
-            if size == 0 and node in linear_ref_nodes:
-                raise Exception("Placeholder nodes (for insertions) cannot be marked as linear ref nodes, since that breaks ref position to node lookup. Best solution is to not put these in linear ref nodes")
-        """
-
+        #assert node_ids[0] == 1, "Nodes must start with id 1. First id now is %d" % node_ids[0]
 
         max_node = np.max(node_ids)
         nodes = np.zeros(max_node+1, dtype=np.uint32)
         nodes[node_ids] = node_sizes
 
         # Node sequences
+        node_sorting = np.argsort(node_ids)
+
+        sequences_sorted = node_sequences[node_sorting]
         logging.info("Making node sequences")
-        new_node_positions = np.cumsum(node_sizes)
-        node_sequence_index = np.zeros(max_node+1, dtype=np.uint64)
-        node_sequence_index[node_ids[0]] = 0
-        node_sequence_index[node_ids[1:]] = new_node_positions[:-1]
-        logging.info("Merging sequences into one string, chaining them first")
-        node_sequences = list(itertools.chain.from_iterable(node_sequences))
-        logging.info("Total length of graph sequences: %d" % len(node_sequences))
-        logging.info("Done chaining sequences")
-        node_sequences_array = np.array(node_sequences).astype("<U1")
-        logging.info("Done merging sequences")
+        sequence = np.array(list(''.join(sequences_sorted)))
+        numeric_sequence = convert_sequence_array_to_numeric(sequence)
+        sequences = RaggedArray(numeric_sequence, nodes, dtype=np.uint8)
 
 
-        #node_sequences_array = np.zeros(max_node+0, dtype=object)
-        #logging.info("Allocating empty sequence array for node sequences")
-        #node_sequences_array = np.array([np.zeros(size, dtype="<U1") for size in nodes])  # Must allocate space
-        #node_sequences_array[node_ids] = node_sequences
+
+
 
         logging.info("Sorting nodes")
-        sorting = np.argsort(from_nodes)
-        from_nodes = from_nodes[sorting]
-        to_nodes = to_nodes[sorting]
+        #sorting = np.argsort(from_nodes)
+        #from_nodes = from_nodes[sorting]
+        #to_nodes = to_nodes[sorting]
 
+        edges = RaggedArray(to_nodes, n_edges, dtype=np.uint32)
+        print(edges)
+
+        """
         logging.info("Making node index")
         diffs = np.ediff1d(from_nodes, to_begin=1)
         positions_of_unique_nodes = np.nonzero(diffs)[0]
@@ -434,6 +401,7 @@ class Graph:
         node_to_edge_index[unique_nodes] = positions_of_unique_nodes
         n_edges_numbers = np.ediff1d(positions_of_unique_nodes, to_end=len(from_nodes)-positions_of_unique_nodes[-1])
         node_to_n_edges[unique_nodes] = n_edges_numbers
+        """
 
         #logging.info("Finding ref offsets")
         node_to_ref_offset = np.zeros(max_node+1, np.uint64)
@@ -463,8 +431,7 @@ class Graph:
         #logging.info("Ref offset to node 1: %s" % ref_offset_to_node)
         ref_offset_to_node = np.cumsum(ref_offset_to_node, dtype=np.uint32)
 
-        return cls(nodes, node_sequence_index, node_sequences_array, node_to_edge_index,
-                   node_to_n_edges, to_nodes, node_to_ref_offset, ref_offset_to_node, chromosome_start_nodes)
+        return cls(nodes, sequences, edges, node_to_ref_offset, ref_offset_to_node, chromosome_start_nodes)
 
     @classmethod
     def from_vg_json_files(cls, file_names):
