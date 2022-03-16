@@ -88,7 +88,7 @@ def test_single_substitution():
     reference = "AATTGG"
 
     variants = VcfVariants(
-        [VcfVariant(1, 2, "ATT", "CC", type="SUBSTITUTION")]
+        [VcfVariant(1, 2, "ATT", "ACC", type="SUBSTITUTION")]
     )
 
     constructor = GraphConstructor(reference, variants)

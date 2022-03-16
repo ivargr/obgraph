@@ -1,5 +1,6 @@
 from setuptools import setup
 from distutils.core import setup
+from Cython.Build import cythonize
 
 setup(name='obgraph',
       version='0.0.8',
@@ -17,6 +18,7 @@ setup(name='obgraph',
       entry_points={
             'console_scripts': ['obgraph=obgraph.command_line_interface:main']
       },
+      ext_modules = cythonize("obgraph/cython_traversing.pyx"),
 )
 
 """

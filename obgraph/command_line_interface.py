@@ -1,5 +1,6 @@
 import logging
 logging.basicConfig(level=logging.INFO, format='%(module)s %(asctime)s %(levelname)s: %(message)s')
+from obgraph.cython_traversing import traverse_graph_by_following_nodes
 import pyximport; pyximport.install()
 import sys
 import argparse
@@ -91,8 +92,9 @@ def add_allele_frequencies(args):
 
 def make_haplotype_to_nodes(args):
     graph = Graph.from_file(args.graph_file_name)
-    variants = VcfVariants.from_vcf(args.vcf_file_name)
-    haplotype_to_nodes = HaplotypeToNodes.from_graph_and_variants(graph, variants, args.n_haplotypes)
+    variants = VcfVariants.from_vcf(args.vcf_file_name, make_generator=True, skip_index=True)
+    haplotype_to_nodes = HaplotypeToNodes.from_graph_and_variants(graph, variants, args.n_haplotypes, n_threads=args.n_threads)
+    #haplotype_to_nodes = haplotype_to_nodes.get_new_by_traversing_graph(graph, args.n_haplotypes)
     logging.info("Saving to file")
     haplotype_to_nodes.to_file(args.out_file_name)
     logging.info("Wrote to file %s" % args.out_file_name)
@@ -134,6 +136,7 @@ def run_argument_parser(args):
     subparser.add_argument("-v", "--vcf-file-name", required=True)
     subparser.add_argument("-n", "--n-haplotypes", type=int, required=True)
     subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.add_argument("-t", "--n-threads", type=int, default=8, required=False)
     subparser.set_defaults(func=make_haplotype_to_nodes)
 
     def make_node_to_haplotypes_lookup(args):
@@ -248,9 +251,11 @@ def run_argument_parser(args):
         #from .traversing import traverse_graph_by_following_nodes
 
         for haplotype in range(0, args.n_haplotypes):
-            nodes_to_follow = set(haplotype_to_nodes.get_nodes(haplotype))
+
+            nodes_to_follow = np.zeros(len(g.nodes), dtype=np.uint8)
+            nodes_to_follow[haplotype_to_nodes.get_nodes(haplotype)] = 1
             start_time = time.time()
-            new_nodes = cython_traversing.traverse_graph_by_following_nodes(g, nodes_to_follow)
+            new_nodes = traverse_graph_by_following_nodes(g, nodes_to_follow)
             logging.info("Got %d nodes" % len(new_nodes))
             end_time = time.time()
             logging.info("Time spent on haplotype %d: %.5f" % (haplotype, end_time - start_time))
