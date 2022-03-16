@@ -149,11 +149,18 @@ class VcfVariant:
     def get_variant_sequence(self):
         if self.type == "DELETION":
             return ""
-        elif self.type == "INSERTION":
+        elif self.type == "INSERTION" or self.type == "SUBSTITUTION":
             return self.variant_sequence[1:]
         else:
             return self.variant_sequence
 
+    def get_reference_sequence(self):
+        if self.type == "INSERTION":
+            return ""
+        elif self.type == "INSERTION" or self.type == "SUBSTITUTION":
+            return self.ref_sequence[1:]
+        else:
+            return self.ref_sequence
 
     def get_variant_allele_frequency(self):
         try:
@@ -207,6 +214,8 @@ class VcfVariant:
             numeric = 2
         elif genotype_string == "0|1" or genotype_string == "1|0":
             numeric = 1
+        elif genotype_string == ".":
+            numberic = 4
         else:
             logging.error("Could not parse genotype string %s" % genotype_string)
             raise Exception("Unknown genotype")
@@ -316,6 +325,7 @@ class VcfVariants:
         self.variant_genotypes.extend(variant_list)
 
     def get_chunks(self, chunk_size=5000, add_variants_to_list=None):
+        logging.info("Getting variant chunks of size %d" % chunk_size)
         out = []
         prev_time = time.time()
         i = 0
