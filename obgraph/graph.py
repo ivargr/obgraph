@@ -39,7 +39,6 @@ class Graph:
         self.edges = edges
         self.sequences = sequences
 
-
         self.node_to_ref_offset = node_to_ref_offset
         self.ref_offset_to_node = ref_offset_to_node
         self._linear_ref_nodes_cache = None
@@ -75,12 +74,6 @@ class Graph:
 
     def set_numeric_node_sequences(self):
         raise Exception("Unsupported")
-        sequences_as_byte_values = self.node_sequences.astype("|S1").view(np.int8)
-        # from byte values
-        from_values = np.array([65, 67, 71, 84, 97, 99, 103, 116], dtype=np.uint64)  # NB: Must be increasing
-        # to internal base values for a, c, t, g
-        to_values = np.array([0, 1, 3, 2, 0, 1, 3, 2], dtype=np.uint64)
-        self.numeric_node_sequences = remap_array(sequences_as_byte_values, from_values, to_values)
 
     def get_all_nodes(self):
         node_to_n_edges = self.edges.shape.lengths   # a bit hacky, accessing length of RaggedShape in npstructures
@@ -126,22 +119,6 @@ class Graph:
     def get_node_sequence(self, node):
         return ''.join(numeric_to_letter_sequence[self.sequences[node]])
 
-        index_position = self.node_to_sequence_index[node]
-        return ''.join(self.node_sequences[index_position:index_position+self.nodes[node]])
-
-    def get_nodes_sequence_index_positions(self, nodes):
-        # First find the number of indexes we ned
-        sequence_length = np.sum(self.nodes[nodes])
-        indexes = np.zeros(sequence_length, dtype=np.uint64)
-        i = 0
-        for node in nodes:
-            node_size = self.nodes[node]
-            index_position = self.node_to_sequence_index[node]
-            indexes[i:i+node_size] = np.arange(index_position, index_position+node_size)
-            i += self.nodes[node]
-
-        return indexes
-
     def max_node_id(self):
         return len(self.nodes)-1
 
@@ -171,8 +148,7 @@ class Graph:
         return self.sequences[nodes].ravel()
 
     def get_nodes_sequences2(self, nodes):
-        raise NotImplementedError()
-        return ''.join(self.node_sequences[self.get_nodes_sequence_index_positions(nodes)])
+        raise NotImplementedError("Use get_nodes_sequences instead")
 
     def get_nodes_sequence(self, nodes):
         sequences = []
