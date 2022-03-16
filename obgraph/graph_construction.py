@@ -6,6 +6,9 @@ from .graph import Graph
 from .dummy_node_adder import DummyNodeAdder
 import numpy as np
 
+class EmptyNodeException(Exception):
+    pass
+
 class GraphConstructor:
     def __init__(self, reference_sequence, variants: VcfVariants):
         self.reference_sequence = reference_sequence
@@ -83,7 +86,10 @@ class GraphConstructor:
 
 
     def _make_node(self, ref_position_before_node, ref_position_after_node, sequence, is_ref_node=False, is_deletion=False):
-        assert sequence != "", "Empty sequence for node"
+        if sequence == "":
+            logging.error("Ref pos before node: %d" % ref_position_before_node)
+            raise EmptyNodeException("Empty sequence for node")
+
         #size = len(sequence)
         #self._node_ids.append(self._current_node_id)
         #self._node_sequences.append(np.array(list(sequence)))
@@ -119,7 +125,13 @@ class GraphConstructor:
             if breakpoint_position > prev_ref_node_end:
                 #logging.info("   Making a reference node %d. Pos before/after: %d/%d." % (
                 #self._current_node_id, prev_ref_node_end, breakpoint_position + 1))
-                prev_ref_node_id = self._make_node(prev_ref_node_end, breakpoint_position+1, self.reference_sequence[prev_ref_node_end+1:breakpoint_position+1], is_ref_node=True)
+                try:
+                    prev_ref_node_id = self._make_node(prev_ref_node_end, breakpoint_position+1, self.reference_sequence[prev_ref_node_end+1:breakpoint_position+1], is_ref_node=True)
+                except EmptyNodeException:
+                    logging.error("Tried making a node between pos %d and %d" % (prev_ref_node_end, breakpoint_position+1))
+                    logging.info("Variant is %s" % variant)
+                    raise
+
                 prev_ref_node_end = breakpoint_position
                 #logging.info("    Setting prev ref node end to %d" % prev_ref_node_end)
 
