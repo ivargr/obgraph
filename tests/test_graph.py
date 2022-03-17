@@ -36,6 +36,8 @@ def test_from_dicts():
     assert g.get_ref_offset_at_node(4) == 5
     assert g.get_ref_offset_at_node(2) == 4
 
+    assert list(g.chromosome_start_nodes) == [1]
+
 
 def test_sparse_graph():
     g = Graph.from_dicts(
@@ -54,6 +56,8 @@ def test2():
         {0: [1, 2], 1: [3], 2: [3]},
         [0, 3]
     )
+
+    assert list(g.chromosome_start_nodes) == [0]
 
     assert set(g.get_edges(0)) == set([1, 2])
 

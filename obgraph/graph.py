@@ -270,6 +270,7 @@ class Graph:
         assert linear_ref_nodes is not None
         logging.info("Making graph from dicts")
         nodes = np.sort(list(node_sequences.keys())).astype(np.uint32)
+        node_ids = nodes
         max_node = nodes[-1]
         logging.info("Max node id is %d" % max_node)
 
@@ -279,6 +280,7 @@ class Graph:
         node_sizes_array = np.zeros(nodes[-1]+1, dtype=np.uint32)
         node_sizes_array[nodes] = node_sizes
         nodes = node_sizes_array
+        logging.info("Node sizes array: %s" % node_sizes_array)
 
         #from_nodes = []
 
@@ -321,8 +323,8 @@ class Graph:
         # logging.info("Ref offset to node 1: %s" % ref_offset_to_node)
         ref_offset_to_node = np.cumsum(ref_offset_to_node, dtype=np.uint32)
 
-        chromosome_start_nodes = [node for node in nodes if node not in to_nodes_set]
-
+        chromosome_start_nodes = [node for node in node_ids if node not in to_nodes_set]
+        logging.info("Chromosome start nodes are %s" % chromosome_start_nodes)
         print("Ref offset to node: %s" % ref_offset_to_node)
 
         return Graph(node_sizes_array, sequences, RaggedArray(to_nodes, n_edges, dtype=np.uint32), node_to_ref_offset, ref_offset_to_node, chromosome_start_nodes)
