@@ -733,8 +733,8 @@ class Graph:
         return nodes
 
     def get_reverse_edges_hashtable(self):
-        from_nodes = NumpyList(dtype=np.uint32)
-        to_nodes = NumpyList(dtype=np.uint32)
+        from_nodes = NpList(dtype=np.uint32)
+        to_nodes = NpList(dtype=np.uint32)
 
         for node in self.get_all_nodes():
             for edge in self.get_edges(node):
