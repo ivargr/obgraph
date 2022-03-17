@@ -351,18 +351,6 @@ def run_argument_parser(args):
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.set_defaults(func=make_node_to_variants)
 
-    def set_numeric_node_sequences(args):
-        graph = Graph.from_file(args.graph)
-        logging.info("Converting to numeric")
-        graph.set_numeric_node_sequences()
-        graph.to_file(args.graph)
-        logging.info("Saved to the same file %s" % args.graph)
-
-    subparser = subparsers.add_parser("set_numeric_node_sequences")
-    subparser.add_argument("-g", "--graph", required=True)
-    subparser.add_argument("-t", "--n-threads", required=False, default=10, type=int)
-    subparser.set_defaults(func=set_numeric_node_sequences)
-
     def create_coordinate_converter(args):
         from .coordinate_converter import CoordinateConverter
         converter = CoordinateConverter.from_graph(Graph.from_file(args.graph))

@@ -135,14 +135,7 @@ class Graph:
         if self.get_node_size(node) == 0:
             return -1
 
-        try:
-            return self.get_numeric_node_sequence(int(node))[offset]
-            #return self.numeric_node_sequences[int(self.node_to_sequence_index[int(node)]+offset)]
-        except IndexError:
-            logging.error("Error while fetching sequences for node %d and offset %d" % (node, offset))
-            logging.error("Node to sequence index: %s" % self.node_to_sequence_index)
-            logging.error("Numeric node sequences: %s" % self.numeric_node_sequences)
-            raise
+        return self.get_numeric_node_sequence(int(node))[int(offset)]
 
     def get_numeric_node_sequences(self, nodes):
         return self.sequences[nodes].ravel()
