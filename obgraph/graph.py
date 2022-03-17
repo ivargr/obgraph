@@ -271,6 +271,7 @@ class Graph:
         logging.info("Making graph from dicts")
         nodes = np.sort(list(node_sequences.keys())).astype(np.uint32)
         max_node = nodes[-1]
+        logging.info("Max node id is %d" % max_node)
 
         logging.info("Making sequences")
         node_sequences = np.array([node_sequences[node] for node in nodes])
@@ -302,8 +303,8 @@ class Graph:
 
         # print("Ref node sizes: %s"  % ref_node_sizes)
         ref_offsets = np.cumsum(ref_node_sizes)
-        print("Ref offsets: %s"  % ref_offsets)
         node_to_ref_offset[linear_ref_nodes[1:]] = ref_offsets[:-1]
+
 
         # Find last node to add to linear ref size
         last_node_in_graph = np.argmax(node_to_ref_offset)
@@ -676,6 +677,9 @@ class Graph:
         return [self.get_edges(node) for node in nodes if len(self.get_edges(node)) == 2]
 
     def get_first_node(self):
+        # chromosome start nodes should always be set
+        #return self.chromosome_start_nodes[0]
+
         for candidate in [0, 1]:
             if len(self.get_edges(candidate)) > 0:
                 return candidate

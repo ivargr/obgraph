@@ -48,6 +48,15 @@ def test_sparse_graph():
     assert g.get_nodes_sequence([1, 4]) == "AGGGCACCT"
 
 
+def test2():
+    g = Graph.from_dicts(
+        {0: "ACT", 1: "A", 2: "", 3: "GGG"},
+        {0: [1, 2], 1: [3], 2: [3]},
+        [0, 3]
+    )
+
+    assert set(g.get_edges(0)) == set([1, 2])
+
 test_from_dicts()
 test_sparse_graph()
-
+test2()
