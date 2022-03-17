@@ -7,8 +7,10 @@ from .variants import VcfVariants
 from collections import defaultdict
 from .mutable_graph import MutableGraph
 from dataclasses import dataclass
-from npstructures import RaggedArray
+from npstructures import RaggedArray, HashTable
 from shared_memory_wrapper import to_file, from_file
+from graph_kmer_index.nplist import NpList
+
 
 class VariantNotFoundException(Exception):
     pass
@@ -114,7 +116,7 @@ class Graph:
         return self.allele_frequencies[node]
 
     def get_node_subsequence(self, node, start, end):
-        return self.get_node_sequence(node)[start:end]
+        return self.get_node_sequence(node)[int(start):int(end)]
 
     def get_node_sequence(self, node):
         return ''.join(numeric_to_letter_sequence[self.sequences[node]])
@@ -731,8 +733,6 @@ class Graph:
         return nodes
 
     def get_reverse_edges_hashtable(self):
-        from npstructures.numpylist import NumpyList
-        from npstructures import HashTable
         from_nodes = NumpyList(dtype=np.uint32)
         to_nodes = NumpyList(dtype=np.uint32)
 
