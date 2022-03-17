@@ -3,7 +3,7 @@ from distutils.core import setup
 from Cython.Build import cythonize
 
 setup(name='obgraph',
-      version='0.0.9',
+      version='0.0.11',
       description='obgraph',
       url='http://github.com/ivargr/obgraph',
       author='Ivar Grytten',
@@ -11,7 +11,7 @@ setup(name='obgraph',
       license='MIT',
       packages=["obgraph"],
       zip_safe=False,
-      install_requires=['numpy==1.20.3', 'tqdm', 'pathos', 'graph_kmer_index>=0.0.15', 'shared_memory_wrapper>=0.0.7'],
+      install_requires=['numpy==1.20.3', 'tqdm', 'pathos', 'graph_kmer_index>=0.0.16', 'shared_memory_wrapper>=0.0.7'],
       classifiers=[
             'Programming Language :: Python :: 3'
       ],
@@ -26,5 +26,13 @@ setup(name='obgraph',
 rm -rf dist
 python3 setup.py sdist
 twine upload --skip-existing dist/*
+
+
+rm -rf dist
+python3 setup.py sdist bdist_wheel
+auditwheel repair --plat manylinux_2_17_x86_64 dist/obgraph-*-cp38-cp38-linux_x86_64.whl
+rm dist/*.whl
+mv wheelhouse/* dist
+python3 -m twine upload --repository pypi dist/*
 
 """

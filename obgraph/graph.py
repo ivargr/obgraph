@@ -290,6 +290,9 @@ class Graph:
         to_nodes = np.concatenate([edges[n] for n in range(max_node+1) if n in edges]).astype(np.uint32)
         n_edges = np.array([len(edges[n]) if n in edges else 0 for n in range(max_node+1)], dtype=np.uint8)
 
+        logging.info("To nodes: %s" % to_nodes)
+        logging.info("N edges: %s" % n_edges)
+
         to_nodes_set = set(to_nodes)
         logging.info("Done preparing data from dicts")
         logging.info("There are %d node sequences" % len(node_sequences))
