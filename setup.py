@@ -3,7 +3,7 @@ from distutils.core import setup
 from Cython.Build import cythonize
 
 setup(name='obgraph',
-      version='0.0.12',
+      version='0.0.13',
       description='obgraph',
       url='http://github.com/ivargr/obgraph',
       author='Ivar Grytten',
