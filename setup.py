@@ -1,9 +1,11 @@
 from setuptools import setup
 from distutils.core import setup
 from Cython.Build import cythonize
+from Cython.Distutils import build_ext
+import numpy as np
 
 setup(name='obgraph',
-      version='0.0.13',
+      version='0.0.17',
       description='obgraph',
       url='http://github.com/ivargr/obgraph',
       author='Ivar Grytten',
@@ -18,7 +20,9 @@ setup(name='obgraph',
       entry_points={
             'console_scripts': ['obgraph=obgraph.command_line_interface:main']
       },
-      ext_modules = cythonize("obgraph/cython_traversing.pyx"),
+      cmdclass = {"build_ext": build_ext},
+      ext_modules = cythonize(["obgraph/cython_traversing.pyx"]),
+      include_dirs=np.get_include(),
 )
 
 """

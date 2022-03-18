@@ -275,7 +275,7 @@ class Graph:
         logging.info("Max node id is %d" % max_node)
 
         logging.info("Making sequences")
-        node_sequences = np.array([node_sequences[node] for node in nodes])
+        node_sequences = [node_sequences[node] for node in nodes]
         node_sizes = [len(seq) for seq in node_sequences]
         node_sizes_array = np.zeros(nodes[-1]+1, dtype=np.uint32)
         node_sizes_array[nodes] = node_sizes
