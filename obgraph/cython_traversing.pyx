@@ -16,13 +16,14 @@ def traverse_graph_by_following_nodes(graph, np.uint8_t[:] follow_nodes):
     cdef np.ndarray[np.uint32_t] nodes_found = np.zeros(len(graph.nodes), dtype=np.uint32)
     cdef int node_index = 0
 
-    cdef np.int64_t[:] edges = graph.edges
-    cdef np.uint8_t[:] node_to_n_edges = graph.node_to_n_edges
-    cdef np.uint32_t[:] node_to_edge_index = graph.node_to_edge_index
-    
+    # accessing RaggedArray internal stuff to speed things up later
+    cdef np.uint32_t[:] edges = graph.edges.ravel()
+    cdef np.int64_t[:] node_to_n_edges = graph.edges.shape.lengths
+    cdef np.int64_t[:] node_to_edge_index = graph.edges.shape.starts
+
     cdef np.uint8_t[:] linear_nodes_index = graph.linear_ref_nodes_and_dummy_nodes_index
 
-    cdef np.int64_t[:] next_nodes
+    cdef np.uint32_t[:] next_nodes
     cdef int edge_i = 0
     cdef int next_node = -1
     cdef int j
