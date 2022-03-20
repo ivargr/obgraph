@@ -19,7 +19,12 @@ def test_simple():
     merged_graph = merge_graphs([graph1, graph2])
 
     print(merged_graph)
+    print(merged_graph.edges)
     assert list(merged_graph.get_edges(1)) == [2, 3]
+    assert list(merged_graph.get_edges(6)) == [7, 8]
+    assert merged_graph.get_node_sequence(6) == "AAAA"
+    assert merged_graph.get_node_sequence(7) == "A"
+    assert merged_graph.get_node_sequence(8) == "C"
 
     assert merged_graph.get_node_at_ref_offset(0) == 1
     assert merged_graph.get_node_sequence(merged_graph.get_node_at_ref_offset(8)) == "AAAA"

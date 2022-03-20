@@ -767,6 +767,9 @@ class Graph:
 
 
     def find_nodes_from_node_that_matches_sequence(self, from_node, sequence, nodes_found, all_paths_found):
+        # hack to fix issue with "n"
+        sequence = sequence.replace("n", "a").replace("N", "A")
+
         #logging.info("== Searching from node %d with sequence %s. Variant type %s. Nodes found: %s. All paths found: %s" % (from_node, sequence, variant_type, nodes_found, all_paths_found))
         if sequence == "":
             # All of the sequence is used successfully, return

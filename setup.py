@@ -5,7 +5,7 @@ from Cython.Distutils import build_ext
 import numpy as np
 
 setup(name='obgraph',
-      version='0.0.17',
+      version='0.0.18',
       description='obgraph',
       url='http://github.com/ivargr/obgraph',
       author='Ivar Grytten',

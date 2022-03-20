@@ -30,7 +30,7 @@ def merge_graphs(graphs):
 
         # RaggedArrays can be concatenated
         new_node_sequences.append(graph.sequences)
-        new_edges.append(graph.edges)
+        new_edges.append(graph.edges+node_offset)
 
         new_node_to_ref_offset.append(graph.node_to_ref_offset+ref_offset)
         new_ref_offset_to_node.append(graph.ref_offset_to_node+node_offset)

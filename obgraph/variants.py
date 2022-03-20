@@ -261,8 +261,8 @@ class VcfVariant:
 
         chromosome = int(chromosome)
         position = int(l[1])
-        ref_sequence = l[3].lower()
-        variant_sequence = l[4].lower()
+        ref_sequence = l[3].lower().replace("n", "a")  # we only want actg
+        variant_sequence = l[4].lower().replace("n", "a")
 
         if len(l) >= 10:
             genotype = l[9].split(":")[0].replace("/", "|")
