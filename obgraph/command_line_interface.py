@@ -329,7 +329,7 @@ def run_argument_parser(args):
     def make_variant_to_nodes(args):
         from .variant_to_nodes import VariantToNodes
         graph = Graph.from_file(args.graph)
-        variants = VcfVariants.from_vcf(args.vcf)
+        variants = VcfVariants.from_vcf(args.vcf, skip_index=True)
         variant_to_nodes = VariantToNodes.from_graph_and_variants(graph, variants)
         variant_to_nodes.to_file(args.out_file_name)
         logging.info("Wrote to file %s" % args.out_file_name)
