@@ -1,6 +1,7 @@
 import numpy as np
 from .graph import Graph
 import logging
+from .cython_traversing import fill_zeros_increasingly
 
 
 def add_indel_dummy_nodes(graph):
@@ -123,4 +124,46 @@ def get_number_of_variants_and_individuals_from_vcf(file_name):
     file = open(file_name)
     for line in file:
         continue
+
+
+def fill_zeros_with_last(arr, initial=0):
+    ind = np.nonzero(arr)[0]
+    cnt = np.cumsum(np.array(arr, dtype=bool))
+    return np.where(cnt, arr[ind[cnt-1]], initial)
+
+
+def create_coordinate_map(path_nodes, graph, chromosome_index=0):
+    path_node_sizes = graph.nodes[path_nodes]
+    path_offsets = np.concatenate([[0], np.cumsum(path_node_sizes)[:-1]]).astype(int)
+    linear_ref_offsets = graph.node_to_ref_offset[path_nodes] - graph.get_ref_offset_at_node(graph.chromosome_start_nodes[chromosome_index])
+
+    print(path_offsets)
+    print(linear_ref_offsets)
+
+    # lookup is from path_offsets to linear_ref_offsets
+    lookup = np.zeros(int(path_offsets[-1])+1, dtype=np.int64)
+    lookup[path_offsets] = linear_ref_offsets
+    print(lookup)
+    fill_zeros_increasingly(lookup)
+
+    """
+    # should fill zeros with 1 more than last, if not large nodes will not give accurate mapping
+    lookup = fill_zeros_with_last(lookup)
+
+    # Add node offsets
+    path_node_to_dist = np.zeros(int(path_offsets[-1])+1)
+    path_node_to_dist[path_offsets] = path_offsets
+    path_node_to_dist = fill_zeros_with_last(path_node_to_dist)
+    print("Path node to dist: %s" % path_node_to_dist)
+
+    node_offsets = np.arange(0, len(path_node_to_dist)) - path_node_to_dist
+    print("Lookup before adding: %s" % lookup)
+    lookup += node_offsets
+
+    """
+    print("Final lookup: %s" % lookup)
+    return lookup
+
+
+
 

@@ -4,7 +4,7 @@ import logging
 from .graph import VariantNotFoundException, Graph
 import pickle
 from multiprocessing import Pool, Process
-from shared_memory_wrapper.shared_memory import to_shared_memory, from_shared_memory
+from shared_memory_wrapper.shared_memory import object_to_shared_memory, object_from_shared_memory
 from itertools import repeat
 from .traversing import traverse_graph_by_following_nodes
 import random
@@ -117,7 +117,7 @@ class HaplotypeToNodes:
 
     @staticmethod
     def _multiprocess_wrapper(shared_memory_graph_name, variants, limit_to_n_haplotypes=10):
-        graph = from_shared_memory(Graph, shared_memory_graph_name)
+        graph = object_from_shared_memory(shared_memory_graph_name)
         return HaplotypeToNodes.get_flat_haplotypes_and_nodes_from_graph_and_variants(graph, variants, limit_to_n_haplotypes)
 
     @classmethod
@@ -211,7 +211,7 @@ class HaplotypeToNodes:
         logging.info("Making pool")
         pool = Pool(n_threads)
         logging.info("Made pool")
-        shared_memory_graph_name = to_shared_memory(graph)
+        shared_memory_graph_name = object_to_shared_memory(graph)
         logging.info("Put graph in shared memory")
 
         for haplotypes, nodes in pool.starmap(HaplotypeToNodes._multiprocess_wrapper, zip(repeat(shared_memory_graph_name), variants.get_chunks(chunk_size=1000), repeat(limit_to_n_haplotypes))):

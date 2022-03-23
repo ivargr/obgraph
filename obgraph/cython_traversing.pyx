@@ -4,9 +4,15 @@ cimport numpy as np
 cimport cython
 import time
 
+def fill_zeros_increasingly(np.int64_t[:] array):
+    cdef int i = 0
+    for i in range(1, len(array)):
+        if array[i] == 0:
+            array[i] = array[i-1] + 1
+
 
 @cython.wraparound(False)
-def traverse_graph_by_following_nodes(graph, np.uint8_t[:] follow_nodes):
+def traverse_graph_by_following_nodes(graph, np.uint8_t[:] follow_nodes, split_into_chromosomes=False):
     logging.info("Traversing with cython")
 
     #assert type(follow_nodes) == np.ndarray
@@ -33,8 +39,11 @@ def traverse_graph_by_following_nodes(graph, np.uint8_t[:] follow_nodes):
     cdef int current_node
 
     #print(type(current_node))
+    chromosome_index_positions = []
 
     for current_node in graph.chromosome_start_nodes:
+        if split_into_chromosomes:
+            chromosome_index_positions.append(node_index)
 
         while True:
             #if current_node in follow_nodes:
@@ -67,5 +76,8 @@ def traverse_graph_by_following_nodes(graph, np.uint8_t[:] follow_nodes):
     #nodes_found.append(current_node)
     nodes_found[node_index] = current_node
     node_index += 1
+
+    if split_into_chromosomes:
+        return nodes_found[0:node_index], chromosome_index_positions
 
     return nodes_found[0:node_index]

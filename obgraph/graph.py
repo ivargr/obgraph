@@ -146,6 +146,7 @@ class Graph:
         raise NotImplementedError("Use get_nodes_sequences instead")
 
     def get_nodes_sequence(self, nodes):
+        # todo: This is slow, should be fixed
         sequences = []
 
         for node in nodes:

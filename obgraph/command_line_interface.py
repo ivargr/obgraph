@@ -20,6 +20,7 @@ from multiprocessing import Pool
 import time
 from itertools import repeat
 from graph_kmer_index.flat_kmers import letter_sequence_to_numeric
+from .util import create_coordinate_map
 
 
 def np_letter_sequence_to_numeric(letter_sequence):
@@ -399,6 +400,55 @@ def run_argument_parser(args):
     subparser.add_argument("-o", "--out-file-name", required=True)
     subparser.set_defaults(func=make_position_id)
 
+
+    def get_haplotype_sequence(args):
+        # will traverse graph and follow these nodes
+        # gets sequence for each chromosome in graph
+        # writes fasta with sequences
+        variant_nodes = np.load(args.nodes)
+        nodes_to_follow = np.zeros(len(args.graph.nodes), dtype=np.uint8)
+        nodes_to_follow[variant_nodes] = 1
+        path_nodes, chromosome_indexes = traverse_graph_by_following_nodes(args.graph, nodes_to_follow, True)
+
+        chromosome_indexes.append(len(path_nodes))
+
+        chromosome_chunks = list(zip(chromosome_indexes[0:-1], chromosome_indexes[1:]))
+        logging.info("Chromosome chunks: %s" % chromosome_chunks)
+
+        chromosome_id = 1  # assume chromosomes are sorted
+        fasta_lines = []
+        coordinate_maps = []
+
+        chromosome_index = 0
+        for start_index, end_index in chromosome_chunks:
+            nodes = path_nodes[start_index:end_index]
+            fasta_lines.append(">" + str(chromosome_id))
+            fasta_lines.append(args.graph.get_nodes_sequence(nodes))
+
+            # create a coordinate-map, a lookup from path pos to approx linear ref pos in graph
+            coordinate_maps.append(create_coordinate_map(nodes, args.graph, chromosome_index))
+
+            chromosome_index += 1
+            chromosome_id += 1
+
+        # write all sequences to fasta
+        with open(args.out_file_name + ".fa", "w") as f:
+            f.writelines(fasta_lines)
+            logging.info("Wrote sequences to %s" % (args.out_file_name + ".fa"))
+
+        # also write nodes in path to file
+        np.save(args.out_file_name + ".nodes", path_nodes)
+        logging.info("Wrote nodes in haplotype path to %s" % args.out_file_name + ".nodes.npy")
+
+        to_file(coordinate_maps, args.out_file_name + ".coordinate_maps")
+        logging.info("Wrote coordinate maps to %s" % args.out_file_name + ".coordinate_maps")
+
+
+    subparser = subparsers.add_parser("get_haplotype_sequence")
+    subparser.add_argument("-n", "--nodes", required=True)
+    subparser.add_argument("-g", "--graph", required=True, type=Graph.from_file)
+    subparser.add_argument("-o", "--out-file-name", required=True)
+    subparser.set_defaults(func=get_haplotype_sequence)
 
     if len(args) == 0:
         parser.print_help()
