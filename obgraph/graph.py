@@ -478,11 +478,16 @@ class Graph:
     def get_snp_nodes(self, ref_offset, reference_bases, variant_bases, chromosome=1):
         node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
         node_offset = self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
-        assert node_offset == 0, "Node offset is %d at ref_offset %d. Variant bases: %s. Chromosome %d" % (node_offset, ref_offset, variant_bases, chromosome)
+
+        if node_offset != 0:
+            raise VariantNotFoundException("Node offset is %d at ref_offset %d. Variant bases: %s. Chromosome %d" % (node_offset, ref_offset, variant_bases, chromosome))
+
         prev_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset - 1)
 
         _, possible_snp_nodes = self.find_nodes_from_node_that_matches_sequence(prev_node, variant_bases, [], [])
-        assert len(possible_snp_nodes) > 0, "Did not find any possible snp nodes for variant at ref offset %s with variant sequence %s" % (ref_offset, variant_bases)
+
+        if len(possible_snp_nodes) == 0:
+            raise VariantNotFoundException("Did not find any possible snp nodes for variant at ref offset %s with variant sequence %s" % (ref_offset, variant_bases))
 
         next_ref_pos = ref_offset + len(reference_bases)
         next_ref_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, next_ref_pos)
@@ -517,7 +522,7 @@ class Graph:
 
             # logging.info("Node after deletion: %d" % next_ref_node)
             if self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, next_ref_pos) != 0:
-                raise Exception("Could not find next ref node")
+                raise VariantNotFoundException("Could not find next ref node")
 
             #logging.info("Next ref node: %d. Edges from potential: %s" % (next_ref_node, str(self.get_edges(potential_next))))
             if next_ref_node in self.get_edges(potential_next):
@@ -526,7 +531,7 @@ class Graph:
         logging.error("Could not parse substitution at offset %d with bases %s. Next ref pos is %d. Next ref node is %d" % (ref_offset, variant_bases, next_ref_pos, next_ref_node))
         logging.info("Reference node for snp/subsitution is %d" % node)
         logging.error("Possible nodes are: %s" % possible_snp_nodes)
-        raise Exception("Parseerrror")
+        raise VariantNotFoundException("Error")
 
     def get_deletion_nodes(self, ref_offset, deletion_length, deleted_sequence, chromosome=1):
         ref_offset += 1
@@ -535,7 +540,8 @@ class Graph:
         node_offset = self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, ref_offset)
         #logging.info("Processing deletion at ref pos %d with size %d. Node inside deletion: %d" % (ref_offset, deletion_length, node))
 
-        assert node_offset == 0, "Node offset is %d, not 0" %  (node_offset)
+        if node_offset != 0:
+            raise VariantNotFoundException("Node offset is %d, not 0" %  (node_offset))
 
         prev_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset - 1)
         #logging.info("Node before deletion: %d" % prev_node)
@@ -545,13 +551,12 @@ class Graph:
         next_ref_node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, ref_offset + deletion_length)
         #logging.info("Node after deletion: %d" % next_ref_node)
         if self.get_node_offset_at_chromosome_and_chromosome_offset(chromosome, next_ref_pos) != 0:
-            logging.info("Could not find deletion at ref offset %d in graph" % ref_offset)
             #logging.error("Offset %d is not at beginning of node" % next_ref_pos)
             #logging.error("Node at %d: %d" % (next_ref_pos, next_ref_node))
             #logging.error("Ref length in deletion: %s" % deletion_length)
             #logging.info("Ref pos beginning of deletion: %d" % ref_offset)
 
-            raise VariantNotFoundException("Deletion not in graph")
+            raise VariantNotFoundException("Deletion at ref offset %d not in graph" % ref_offset)
 
         # Find an empty node between prev_node and next_ref_node
         # This solution should handle cases where the reference has multiple nodes inside deleted segment (e.g. a SNP inside a deleted sequence)
@@ -589,9 +594,8 @@ class Graph:
                     # This assertion won't always hold, e.g. if there are two insertions after a deltion, so just skip it
                     #assert len([n for n in self.get_edges(deletion_nodes[0]) if next_ref_node in self.get_edges(n) and self.get_node_size(n) == 0]), "There is more than one deletion node, and the next node
             else:
-                logging.warning("Could not find deletion at ref offset %d in graph" % ref_offset)
-                logging.warning("There should be only one deletion node between %d and %d for variant at ref pos %d. There are %d. Edges out from %d are: %s. Edges out from %d are %s" % (prev_node, next_ref_node, ref_offset, len(deletion_nodes), prev_node, self.get_edges(prev_node), node, self.get_edges(node)))
-                raise VariantNotFoundException("Deletion not in graph")
+                #logging.warning("Could not find deletion at ref offset %d in graph" % ref_offset)
+                raise VariantNotFoundException("There should be only one deletion node between %d and %d for variant at ref pos %d. There are %d. Edges out from %d are: %s. Edges out from %d are %s" % (prev_node, next_ref_node, ref_offset, len(deletion_nodes), prev_node, self.get_edges(prev_node), node, self.get_edges(node)))
 
         deletion_node = deletion_nodes[0]
         # Not true anymore, e.g. if there is a snp right after a deletion
@@ -609,7 +613,8 @@ class Graph:
         insertion_length = len(variant.variant_sequence) - 1
         insertion_sequence = variant.variant_sequence[1:]  # First base is not included
 
-        assert node_offset == node_size - 1, "Node offset %d is not at end of node %d which has size %d. Insertion not found in graph." % (node_offset, node, node_size)
+        if node_offset != node_size - 1:
+            raise VariantNotFoundException("Node offset %d is not at end of node %d which has size %d. Insertion not found in graph." % (node_offset, node, node_size))
 
         # Find out which next node matches the insertion
         # NB! There might be more than one node with the same sequence going out before the variant, since a SNP can have same sequence as the insertion
@@ -633,7 +638,8 @@ class Graph:
                     variant_node = potential_next
                     break
 
-        assert variant_node is not None, "Could not find insertion node. No nodes going out from %d has sequence %s" % (node, variant.variant_sequence)
+        if variant_node is None:
+            raise VariantNotFoundException("Could not find insertion node. No nodes going out from %d has sequence %s" % (node, variant.variant_sequence))
 
         # Find linear reference node (empty dummy node)
         assert next_ref_node in self.get_edges(variant_node), "Failed parsing insertion %s. Found %d as next ref node after variant node, but there is no edge from variantnode %d to %d" % (variant, next_ref_node, variant_node, next_ref_node)

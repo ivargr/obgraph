@@ -21,6 +21,7 @@ import time
 from itertools import repeat
 from graph_kmer_index.flat_kmers import letter_sequence_to_numeric
 from .util import create_coordinate_map
+from .util import fill_zeros_with_last
 
 
 def np_letter_sequence_to_numeric(letter_sequence):
@@ -417,16 +418,26 @@ def run_argument_parser(args):
 
         chromosome_id = 1  # assume chromosomes are sorted
         fasta_lines = []
-        coordinate_maps = []
+        coordinate_maps = {}
+        refpos_to_node_maps = {}  # mapping from a ref pos in the haplotype coordinate space to node
 
         chromosome_index = 0
         for start_index, end_index in chromosome_chunks:
             nodes = path_nodes[start_index:end_index]
-            fasta_lines.append(">" + str(chromosome_id))
-            fasta_lines.append(args.graph.get_nodes_sequence(nodes))
+            fasta_lines.append(">" + str(chromosome_id) + "\n")
+            haplotype_sequence = args.graph.get_nodes_sequence(nodes)
+            fasta_lines.append(haplotype_sequence)
+            fasta_lines.append("\n")
 
             # create a coordinate-map, a lookup from path pos to approx linear ref pos in graph
-            coordinate_maps.append(create_coordinate_map(nodes, args.graph, chromosome_index))
+            coordinate_maps[str(chromosome_id)] = create_coordinate_map(nodes, args.graph, chromosome_index)
+
+            refpos_to_node = np.zeros(len(haplotype_sequence), np.uint32)
+            offsets = np.cumsum(args.graph.nodes[nodes])
+            refpos_to_node[0] = nodes[0]
+            refpos_to_node[offsets[:-1]] = nodes[1:]
+            refpos_to_node = fill_zeros_with_last(refpos_to_node)
+            refpos_to_node_maps[str(chromosome_id)] = refpos_to_node
 
             chromosome_index += 1
             chromosome_id += 1
@@ -442,6 +453,9 @@ def run_argument_parser(args):
 
         to_file(coordinate_maps, args.out_file_name + ".coordinate_maps")
         logging.info("Wrote coordinate maps to %s" % args.out_file_name + ".coordinate_maps")
+
+        to_file(refpos_to_node_maps, args.out_file_name + ".refpos_to_node")
+        logging.info("Wrote refpos to node map to %s" % args.out_file_name + ".refpos_to_node")
 
 
     subparser = subparsers.add_parser("get_haplotype_sequence")
