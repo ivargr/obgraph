@@ -40,6 +40,10 @@ class MutableGraph:
             for edge in self.get_edges(node):
                 self.reverse_edges[edge].append(node)
 
+    def set_linear_ref_nodes(self, nodes):
+        self.linear_ref_nodes = nodes
+        self.linear_ref_nodes_set = set(nodes)
+
     def get_all_nodes(self):
         return list(self.nodes.keys())
 

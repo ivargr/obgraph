@@ -13,6 +13,7 @@ class DummyNodeAdder:
         self.current_new_node_id = len(self.graph.nodes) + 1
         self._n_variants_failed = 0
         self._n_variants_fixed = 0
+        self._old_edges_to_new_node_mapping = {}
 
     def create_new_graph_with_dummy_nodes(self, use_mutable_graph=None):
         if use_mutable_graph is None:
@@ -43,6 +44,9 @@ class DummyNodeAdder:
         logging.info("%d variants were not found in graph" % self._n_variants_failed)
         logging.info("%d variants were found and dummy nodes were added for these" % self._n_variants_fixed)
         return Graph.from_mutable_graph(self.mutable_graph)
+
+    def get_edge_mapping(self):
+        return self._old_edges_to_new_node_mapping
 
     def get_nodes_for_inserted_sequence_at_ref_pos(self, inserted_sequence, ref_pos, variant_type):
         node_before_inserted_nodes = self.graph.get_node_at_ref_offset(ref_pos-1)
@@ -137,6 +141,7 @@ class DummyNodeAdder:
         for from_node, to_node in edges:
             if to_node in self.mutable_graph.get_edges(from_node):
                 self.mutable_graph.remove_edge(from_node, to_node)
+                self._old_edges_to_new_node_mapping[(from_node, to_node)] = dummy_node
 
         # For all unique from_nodes add an edge to the dummy node
         for from_node in set((from_node for from_node, to_node in edges)):

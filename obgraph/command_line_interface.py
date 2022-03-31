@@ -1,4 +1,6 @@
 import logging
+import pickle
+
 logging.basicConfig(level=logging.INFO, format='%(module)s %(asctime)s %(levelname)s: %(message)s')
 from obgraph.cython_traversing import traverse_graph_by_following_nodes
 import pyximport; pyximport.install()
@@ -71,17 +73,18 @@ def make(args):
         graph = Graph.from_vg_json_files(args.vg_json_files)
         graph.to_file(args.out_file_name)
 
-def add_indel_nodes(args):
-    graph = Graph.from_file(args.graph_file_name)
-    new_graph = add_indel_dummy_nodes(graph)
-    new_graph.to_file(args.out_file_name)
 
-def add_indel_nodes2(args):
+def add_indel_nodes(args):
     variants = VcfVariants.from_vcf(args.vcf_file_name)
     graph = Graph.from_file(args.graph_file_name)
     adder = DummyNodeAdder(graph, variants)
     new_graph = adder.create_new_graph_with_dummy_nodes()
+    edge_mapping = adder.get_edge_mapping()
     new_graph.to_file(args.out_file_name)
+    logging.info("Wrote new graph to file %s" % args.out_file_name)
+    with open(args.out_file_name + ".edge_mapping", "wb") as f:
+        pickle.dump(edge_mapping, f)
+        logging.info("Wrote edge mapping from old edges to new dummy nodes to file %s.edge_mapping" % args.out_file_name)
 
 def add_allele_frequencies(args):
     logging.info("Reading graph")
@@ -121,11 +124,11 @@ def run_argument_parser(args):
     subparser.add_argument("-c", "--chromosome", required=False)
     subparser.set_defaults(func=make)
 
-    subparser = subparsers.add_parser("add_indel_nodes2")
+    subparser = subparsers.add_parser("add_indel_nodes")
     subparser.add_argument("-o", "--out_file_name", required=True)
     subparser.add_argument("-g", "--graph-file-name", required=True)
     subparser.add_argument("-v", "--vcf-file-name", required=True)
-    subparser.set_defaults(func=add_indel_nodes2)
+    subparser.set_defaults(func=add_indel_nodes)
 
     subparser = subparsers.add_parser("add_allele_frequencies")
     subparser.add_argument("-g", "--graph-file-name", required=True)
@@ -463,6 +466,16 @@ def run_argument_parser(args):
     subparser.add_argument("-g", "--graph", required=True, type=Graph.from_file)
     subparser.add_argument("-o", "--out-file-name", required=True)
     subparser.set_defaults(func=get_haplotype_sequence)
+
+    def from_gfa(args):
+        from .gfa import create_graph_from_gfa_file
+        graph = create_graph_from_gfa_file(args.gfa)
+        graph.to_file(args.out_file_name)
+
+    subparser = subparsers.add_parser("from_gfa")
+    subparser.add_argument("-g", "--gfa", required=True)
+    subparser.add_argument("-o", "--out-file-name", required=True)
+    subparser.set_defaults(func=from_gfa)
 
     if len(args) == 0:
         parser.print_help()
