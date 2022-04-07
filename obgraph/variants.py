@@ -154,6 +154,19 @@ class VcfVariant:
         else:
             return self.variant_sequence
 
+    def get_inserted_sequence(self):
+        # different from get_variant_sequence for deletions
+        if self.type == "DELETION":
+            inserted_sequence = self.ref_sequence[1:]
+        elif self.type == "INSERTION":
+            inserted_sequence = self.variant_sequence[1:]
+        elif self.type == "SUBSTITUTION":
+            inserted_sequence = self.variant_sequence[1:]
+        else:
+            raise Exception("Unsupported variant")
+
+        return inserted_sequence
+
     def get_reference_sequence(self):
         if self.type == "INSERTION":
             return ""

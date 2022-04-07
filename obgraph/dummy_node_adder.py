@@ -48,25 +48,18 @@ class DummyNodeAdder:
     def get_edge_mapping(self):
         return self._old_edges_to_new_node_mapping
 
-    def get_nodes_for_inserted_sequence_at_ref_pos(self, inserted_sequence, ref_pos, variant_type):
-        node_before_inserted_nodes = self.graph.get_node_at_ref_offset(ref_pos-1)
-        inserted_nodes = self.mutable_graph.find_nodes_from_node_that_matches_sequence(node_before_inserted_nodes, inserted_sequence, variant_type, [], [])
+    def get_nodes_for_inserted_sequence_at_ref_pos(self, variant):
+        inserted_sequence = variant.get_inserted_sequence()
+        node_before_inserted_nodes = self.graph.get_node_at_chromosome_and_chromosome_offset(variant.chromosome, variant.position-1)
+        inserted_nodes = self.mutable_graph.find_nodes_from_node_that_matches_sequence(node_before_inserted_nodes, inserted_sequence, variant.type, [], [])
         if len(inserted_nodes) == 0:
-            raise VariantNotFoundException("Could not find inserted nodes for sequence %s at ref pos %d. Node before is %d" % (inserted_sequence, ref_pos, node_before_inserted_nodes))
+            raise VariantNotFoundException("Could not find inserted nodes for sequence %s, variant %s. Node before is %d" % (inserted_sequence, variant, node_before_inserted_nodes))
 
         return inserted_nodes
 
     def _add_dummy_edges_around_indel(self, variant):
-        if variant.type == "DELETION":
-            inserted_sequence = variant.ref_sequence[1:]
-        elif variant.type == "INSERTION":
-            inserted_sequence = variant.variant_sequence[1:]
-        elif variant.type == "SUBSTITUTION":
-            inserted_sequence = variant.variant_sequence[1:]
-        else:
-            raise Exception("Unsupported variant")
-
-        _, possible_inserted_node_paths = self.get_nodes_for_inserted_sequence_at_ref_pos(inserted_sequence, variant.position, variant.type)
+        inserted_sequence = variant.get_inserted_sequence()
+        _, possible_inserted_node_paths = self.get_nodes_for_inserted_sequence_at_ref_pos(variant)
 
         #logging.info("===========")
         #logging.info("Variant %s. Inserted nodes: %s" % (variant, possible_inserted_node_paths))
@@ -82,16 +75,12 @@ class DummyNodeAdder:
                 in_nodes = self.mutable_graph.get_nodes_before(possible_path[0])
                 out_nodes = self.mutable_graph.get_edges(possible_path[-1])
 
-                if variant.position == 103995331:
-                    logging.info("Path: %s. In nodes: %s. Out nodes: %s" % (possible_path, in_nodes, out_nodes))
-                    logging.info("Edges from in_nodes: %s" % [(n, self.graph.get_edges(n)) for n in in_nodes])
-
                 if len([(from_node, to_node) for from_node, to_node in product(in_nodes, out_nodes) if to_node in self.graph.get_edges(from_node)]) > 0:
 
                     if variant.type == "DELETION":
                         # If deletion, the last position in the last node on the path must be on the linear reference and match the length of the deleted sequence
                         deletion_end_pos = variant.position + len(inserted_sequence)
-                        if deletion_end_pos != self.graph.get_ref_offset_at_node(possible_path[-1]) + self.graph.get_node_size(possible_path[-1]):
+                        if deletion_end_pos != self.graph.get_chromosome_ref_offset_at_node(variant.chromosome, possible_path[-1]) + self.graph.get_node_size(possible_path[-1]):
                             logging.info("Ignoring deletion path %s because ref pos at end is not correct" % possible_path)
                             continue
 

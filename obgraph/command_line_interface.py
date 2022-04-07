@@ -81,6 +81,7 @@ def add_indel_nodes(args):
     new_graph = adder.create_new_graph_with_dummy_nodes()
     edge_mapping = adder.get_edge_mapping()
     new_graph.to_file(args.out_file_name)
+    logging.info("Chromosome start nodes in new graph: %s" % new_graph.chromosome_start_nodes)
     logging.info("Wrote new graph to file %s" % args.out_file_name)
     with open(args.out_file_name + ".edge_mapping", "wb") as f:
         pickle.dump(edge_mapping, f)
@@ -90,7 +91,7 @@ def add_allele_frequencies(args):
     logging.info("Reading graph")
     graph = Graph.from_file(args.graph_file_name)
     variants = VcfVariants.from_vcf(args.vcf_file_name, limit_to_chromosome=args.chromosome, skip_index=True)
-    graph.set_allele_frequencies_from_variants(variants, use_chromosome=1)  # Use chromosome 1 because we always assume this is a single-chromosome graph
+    graph.set_allele_frequencies_from_variants(variants, use_chromosome=args.chromosome)  # Use chromosome 1 because we always assume this is a single-chromosome graph
     graph.to_file(args.graph_file_name)
     logging.info("Wrote modified graph to the same file %s" % args.graph_file_name)
 
@@ -133,7 +134,7 @@ def run_argument_parser(args):
     subparser = subparsers.add_parser("add_allele_frequencies")
     subparser.add_argument("-g", "--graph-file-name", required=True)
     subparser.add_argument("-v", "--vcf-file-name", required=True)
-    subparser.add_argument("-c", "--chromosome", default="1", required=False, help="If vcf contains multiple chromsomes, use this to limit to the chromosome that the graph is made from")
+    subparser.add_argument("-c", "--chromosome", required=False, help="If vcf contains multiple chromsomes, use this to limit to the chromosome that the graph is made from")
     subparser.set_defaults(func=add_allele_frequencies)
 
     subparser = subparsers.add_parser("make_haplotype_to_nodes")

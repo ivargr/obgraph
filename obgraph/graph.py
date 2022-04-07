@@ -100,7 +100,8 @@ class Graph:
 
     @classmethod
     def from_mutable_graph(cls, mutable_graph):
-        return cls.from_dicts(mutable_graph.node_sequences, mutable_graph.edges, mutable_graph.linear_ref_nodes)
+        return cls.from_dicts(mutable_graph.node_sequences, mutable_graph.edges, mutable_graph.linear_ref_nodes,
+                              mutable_graph.chromosome_start_nodes)
 
     def get_node_size(self, node):
         return self.nodes[node]
@@ -177,6 +178,21 @@ class Graph:
         real_offset = int(chromosome_offset + offset)
         return self.get_node_at_ref_offset(real_offset)
 
+
+    def get_linear_ref_nodes_between_offsets(self, chromosome, start_offset, end_offset):
+        # todo
+        chromosome_position = chromosome - 1
+        try:
+            chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+        except IndexError:
+            logging.error(
+                "Could not find chromosome start position for chromosome %d. Chromosome start nodes are %s" % (
+                chromosome, self.chromosome_start_nodes))
+            raise
+
+        chromosome_offset = self.get_ref_offset_at_node(chromosome_start_node)
+        return np.unique(self.ref_offset_to_node[int(chromosome_offset+start_offset):int(chromosome_offset+end_offset)])
+
     def get_edges(self, node):
         if node >= len(self.edges):
             return []
@@ -237,6 +253,18 @@ class Graph:
     def get_ref_offset_at_node(self, node):
         return self.node_to_ref_offset[node]
 
+    def get_chromosome_ref_offset_at_node(self, chromosome, node):
+        chromosome_position = chromosome - 1
+        try:
+            chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+        except IndexError:
+            logging.error(
+                "Could not find chromosome start position for chromosome %d. Chromosome start nodes are %s" % (
+                    chromosome, self.chromosome_start_nodes))
+            raise
+        chromosome_offset = self.get_ref_offset_at_node(chromosome_start_node)
+        return self.get_ref_offset_at_node(node) - chromosome_offset
+
     def get_node_offset_at_ref_offset(self, ref_offset):
         node = self.get_node_at_ref_offset(ref_offset)
         offset_at_node = self.get_ref_offset_at_node(node)
@@ -267,7 +295,7 @@ class Graph:
         return node_ids, node_sequences, node_sizes, from_nodes, to_nodes, linear_ref_nodes, self.chromosome_start_nodes
 
     @classmethod
-    def from_dicts(cls, node_sequences, edges, linear_ref_nodes):
+    def from_dicts(cls, node_sequences, edges, linear_ref_nodes, chromosome_start_nodes=None):
         assert linear_ref_nodes is not None
         logging.info("Making graph from dicts")
         nodes = np.sort(list(node_sequences.keys())).astype(np.uint32)
@@ -327,9 +355,11 @@ class Graph:
         # logging.info("Ref offset to node 1: %s" % ref_offset_to_node)
         ref_offset_to_node = np.cumsum(ref_offset_to_node, dtype=np.uint32)
 
-        chromosome_start_nodes = [node for node in node_ids if node not in to_nodes_set]
-        logging.info("Chromosome start nodes are %s" % chromosome_start_nodes)
-        print("Ref offset to node: %s" % ref_offset_to_node)
+        if chromosome_start_nodes is None:
+            chromosome_start_nodes = [node for node in node_ids if node not in to_nodes_set]
+            logging.info("Found chromosome start nodes to be %s" % chromosome_start_nodes)
+        else:
+            logging.info("Chromosome start nodes already set to %s" % chromosome_start_nodes)
 
         return Graph(node_sizes_array, sequences, RaggedArray(to_nodes, n_edges, dtype=np.uint32), node_to_ref_offset, ref_offset_to_node, chromosome_start_nodes)
         #return Graph.from_flat_nodes_and_edges(nodes, node_sequences, node_sizes, to_nodes, n_edges, np.array(linear_ref_nodes))
