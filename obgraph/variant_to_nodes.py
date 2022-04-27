@@ -36,8 +36,9 @@ class VariantToNodes:
                 logging.info("%d variants processed" % i)
             try:
                 ref_node, var_node = graph.get_variant_nodes(variant)
-            except VariantNotFoundException:
-                logging.erro("Could not find variant, aborting")
+            except VariantNotFoundException as e:
+                logging.error(str(e))
+                logging.error("Could not find variant, aborting")
                 raise
 
             var_nodes[i] = var_node

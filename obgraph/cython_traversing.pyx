@@ -74,8 +74,8 @@ def traverse_graph_by_following_nodes(graph, np.uint8_t[:] follow_nodes, split_i
 
     #if current_node in follow_nodes:
     #nodes_found.append(current_node)
-    nodes_found[node_index] = current_node
-    node_index += 1
+    #nodes_found[node_index] = current_node
+    #node_index += 1
 
     if split_into_chromosomes:
         return nodes_found[0:node_index], chromosome_index_positions
