@@ -32,6 +32,10 @@ class HaplotypeToNodes:
     def n_haplotypes(self):
         return len(self._haplotype_to_index)
 
+    def describe(self):
+        for i in range(len(self._haplotype_to_index)):
+            print("Haplotype %d: %s" % (i, self.get_nodes(i)))
+
     def get_nodes(self, haplotype):
         assert type(haplotype) == int
         index = self._haplotype_to_index[haplotype]

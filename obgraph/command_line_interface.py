@@ -100,6 +100,8 @@ def make_haplotype_to_nodes(args):
     graph = Graph.from_file(args.graph_file_name)
     variants = VcfVariants.from_vcf(args.vcf_file_name, make_generator=True, skip_index=True)
     haplotype_to_nodes = HaplotypeToNodes.from_graph_and_variants(graph, variants, args.n_haplotypes, n_threads=args.n_threads)
+    # todo: Option to add dummy haplotypes for "all variant nodes" and "all reference nodes" (two for each, to mimic an individual)
+
     #haplotype_to_nodes = haplotype_to_nodes.get_new_by_traversing_graph(graph, args.n_haplotypes)
     logging.info("Saving to file")
     haplotype_to_nodes.to_file(args.out_file_name)
@@ -477,6 +479,17 @@ def run_argument_parser(args):
     subparser.add_argument("-g", "--gfa", required=True)
     subparser.add_argument("-o", "--out-file-name", required=True)
     subparser.set_defaults(func=from_gfa)
+
+
+    def convert_gfa_ids_to_numeric_command(args):
+        from .gfa import convert_gfa_ids_to_numeric
+        convert_gfa_ids_to_numeric(args.gfa, args.out_base_name)
+
+
+    subparser = subparsers.add_parser("convert_gfa_ids_to_numeric")
+    subparser.add_argument("-g", "--gfa", required=True)
+    subparser.add_argument("-o", "--out-base-name")
+    subparser.set_defaults(func=convert_gfa_ids_to_numeric_command)
 
     if len(args) == 0:
         parser.print_help()
