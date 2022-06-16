@@ -4,6 +4,8 @@ import io
 import time
 import numpy as np
 import time
+from .util import encode_chromosome
+
 
 def get_variant_type(vcf_line):
 
@@ -266,11 +268,7 @@ class VcfVariant:
     @classmethod
     def from_vcf_line(cls, line, vcf_line_number=None):
         l = line.split()
-        chromosome = l[0]
-        if chromosome == "X":
-            chromosome = 23
-        elif chromosome == "Y":
-            chromosome = 24
+        chromosome = encode_chromosome(l[0])
 
         chromosome = int(chromosome)
         position = int(l[1])
@@ -320,6 +318,9 @@ class VcfVariants:
         self._position_index = {}
         if not skip_index:
             self.make_index()
+
+    def __getitem__(self, item):
+        return self.variant_genotypes[item]
 
     def get_header(self):
         return self._header_lines
