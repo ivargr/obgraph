@@ -1,10 +1,27 @@
 import numpy as np
-from .graph import Graph
 import logging
 from .cython_traversing import fill_zeros_increasingly
+import resource
+
+
+def encode_chromosome(chromosome):
+    if chromosome.upper() == "X":
+        return 23
+    elif chromosome.upper() == "Y":
+        return 24
+    else:
+        return int(chromosome)
+
+
+def phased_genotype_matrix_to_haplotype_matrix(genotype_matrix):
+    haplotype_matrix = np.zeros((genotype_matrix.shape[0], genotype_matrix.shape[1]*2), dtype=genotype_matrix.dtype)
+    haplotype_matrix[:,::2] = (genotype_matrix // 2) == 1
+    haplotype_matrix[:,1::2] = (genotype_matrix % 2) == 1
+    return haplotype_matrix
 
 
 def add_indel_dummy_nodes(graph):
+    from .graph import Graph
     node_ids, node_sequences, node_sizes, from_nodes, to_nodes, linear_ref_nodes, chromosome_start_nodes = graph.get_flat_graph()
 
     linear_ref_set = set(linear_ref_nodes)
@@ -165,5 +182,9 @@ def create_coordinate_map(path_nodes, graph, chromosome_index=0):
     return lookup
 
 
+
+def log_memory_usage_now(logplace=""):
+    memory = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1000000
+    logging.info("Memory usage (%s): %.4f GB" % (logplace, memory))
 
 
