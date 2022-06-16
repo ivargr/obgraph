@@ -61,6 +61,25 @@ def test2():
 
     assert set(g.get_edges(0)) == set([1, 2])
 
+
+
+def test_get_numeric_node_sequences_by_chromosome():
+    g = Graph.from_dicts({
+            1: "T", 2: "A", 1000: "A", 20: "ACAC", 23: "G", 50: "AAA", 51: "G"
+        },
+        {1: [2], 2: [1000], 1000: [20], 20: [23], 23: [50], 50: [51]},
+        [1, 2, 1000, 20, 23, 50, 51],
+        chromosome_start_nodes=[1, 20, 50]
+    )
+
+    sequences = list(g.get_numeric_node_sequences_by_chromosomes([1, 2, 1000, 20, 23, 50, 51]))
+
+    assert np.all(sequences[0] == [2, 0, 0])
+    assert np.all(sequences[1] == [0, 1, 0, 1, 3])
+    assert np.all(sequences[2] == [0, 0, 0, 3])
+
+
+
 test_from_dicts()
 test_sparse_graph()
 test2()

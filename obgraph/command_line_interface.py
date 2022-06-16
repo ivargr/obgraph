@@ -17,13 +17,15 @@ from pyfaidx import Fasta
 from .graph_construction import GraphConstructor
 from .graph_merger import merge_graphs
 import numpy as np
-from shared_memory_wrapper.shared_memory import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session, to_file, from_file
+from shared_memory_wrapper.shared_memory import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session, to_file, from_file, get_shared_pool, close_shared_pool
 from multiprocessing import Pool
 import time
 from itertools import repeat
 from graph_kmer_index.flat_kmers import letter_sequence_to_numeric
 from .util import create_coordinate_map
 from .util import fill_zeros_with_last
+from .variant_to_nodes import VariantToNodes
+from npstructures import RaggedArray
 
 
 def np_letter_sequence_to_numeric(letter_sequence):
@@ -97,6 +99,8 @@ def add_allele_frequencies(args):
 
 
 def make_haplotype_to_nodes(args):
+    get_shared_pool(args.n_threads)
+
     graph = Graph.from_file(args.graph_file_name)
     variants = VcfVariants.from_vcf(args.vcf_file_name, make_generator=True, skip_index=True)
     haplotype_to_nodes = HaplotypeToNodes.from_graph_and_variants(graph, variants, args.n_haplotypes, n_threads=args.n_threads)
@@ -147,6 +151,30 @@ def run_argument_parser(args):
     subparser.add_argument("-t", "--n-threads", type=int, default=8, required=False)
     subparser.set_defaults(func=make_haplotype_to_nodes)
 
+
+    def make_haplotype_to_nodes_bnp(args):
+        from .haplotype_nodes import make_ragged_haplotype_to_nodes
+        phased_genotype_matrix = from_file(args.phased_genotype_matrix).matrix
+        variant_to_nodes = VariantToNodes.from_file(args.variant_to_nodes)
+
+        if args.make_disc_backed:
+            from .haplotype_nodes import DiscBackedHaplotypeToNodes
+            logging.info("Making disc backed")
+            result = DiscBackedHaplotypeToNodes.from_phased_genotype_matrix(phased_genotype_matrix, variant_to_nodes)
+        else:
+            result = make_ragged_haplotype_to_nodes(variant_to_nodes, phased_genotype_matrix, args.n_threads)
+        to_file(result, args.out_file_name)
+
+    subparser = subparsers.add_parser("make_haplotype_to_nodes_bnp")
+    subparser.add_argument("-g", "--variant-to-nodes", required=True)
+    subparser.add_argument("-v", "--phased-genotype-matrix", required=True)
+    subparser.add_argument("-o", "--out_file_name", required=True)
+    subparser.add_argument("-t", "--n-threads", type=int, default=8, required=False)
+    subparser.add_argument("-n", "--n-haplotypes", type=int, required=False)
+    subparser.add_argument("-d", "--make-disc-backed", type=bool, required=False, default=False, help="Uses less memory")
+    subparser.set_defaults(func=make_haplotype_to_nodes_bnp)
+
+
     def make_node_to_haplotypes_lookup(args):
         haplotype_nodes = HaplotypeNodes.from_file(args.haplotype_nodes)
         n = NodeToHaplotypes.from_haplotype_nodes(haplotype_nodes)
@@ -159,7 +187,18 @@ def run_argument_parser(args):
     subparser.set_defaults(func=make_node_to_haplotypes_lookup)
 
     def make_genotype_matrix(args):
-        from .genotype_matrix import GenotypeMatrix
+        from .genotype_matrix import GenotypeMatrix, PhasedGenotypeMatrix
+
+        if args.make_phased_matrix:
+            logging.info("Making phased matrix")
+            if args.vcf_file_name.endswith(".txt.gz"):
+                logging.info("Input is txt")
+                matrix = PhasedGenotypeMatrix.from_txt(args.vcf_file_name, args.n_variants, args.n_individuals)
+            else:
+                matrix = PhasedGenotypeMatrix.from_vcf(args.vcf_file_name, args.n_variants, args.n_individuals)
+            to_file(matrix, args.out_file_name)
+            return
+
 
         if args.n_variants is not None:
             n_variants = args.n_variants
@@ -182,6 +221,7 @@ def run_argument_parser(args):
 
         matrix.to_file(args.out_file_name)
 
+
     subparser = subparsers.add_parser("make_genotype_matrix")
     subparser.add_argument("-g", "--graph", required=False)
     subparser.add_argument("-v", "--vcf-file-name", required=True)
@@ -191,6 +231,7 @@ def run_argument_parser(args):
     subparser.add_argument("-m", "--n-variants", required=False, type=int)
     subparser.add_argument("-t", "--n-threads", required=False, type=int, default=32, help="Number of threads used to fill matrix")
     subparser.add_argument("-c", "--chunk-size", required=False, type=int, default=10000, help="Number of variants to process in each job")
+    subparser.add_argument("-p", "--make-phased-matrix", required=False, type=bool, default=False)
     subparser.set_defaults(func=make_genotype_matrix)
 
     def make_haplotype_matrix(args):

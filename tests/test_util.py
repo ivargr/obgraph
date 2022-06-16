@@ -1,6 +1,7 @@
 from obgraph.util import create_coordinate_map
 from obgraph import Graph
 import numpy as np
+from obgraph.util import phased_genotype_matrix_to_haplotype_matrix
 
 
 def test_create_coordinate_map():
@@ -18,6 +19,23 @@ def test_create_coordinate_map():
     assert m[0] == 0
     assert m[11] == 5
     assert m[14] == 8
+
+
+def test_phased_genotype_matrix_to_haplotype_matrix():
+    matrix = np.array([
+        [0, 1, 2, 3],
+        [3, 2, 1, 0]
+    ])
+
+    true = np.array([
+        [0, 0, 0, 1, 1, 0, 1, 1],
+        [1, 1, 1, 0, 0, 1, 0, 0]
+    ])
+
+
+    assert np.all(
+        phased_genotype_matrix_to_haplotype_matrix(matrix) == true
+    )
 
 test_create_coordinate_map()
 

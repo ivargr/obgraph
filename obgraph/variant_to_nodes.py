@@ -47,9 +47,14 @@ class VariantToNodes:
             assert var_node <= max_graph_node
             assert ref_node <= max_graph_node, "Found ref node %d which is not <= max graph node %d. Variant %s" % (ref_node, max_graph_node, variant)
 
-
-
         return cls(ref_nodes, var_nodes)
+
+
+    def __iter__(self):
+        return zip(self.ref_nodes, self.var_nodes)
+
+    def len(self):
+        return len(self.ref_nodes)
 
 
 class NodeToVariants:

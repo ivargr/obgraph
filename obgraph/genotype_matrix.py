@@ -6,6 +6,64 @@ from shared_memory_wrapper.shared_memory import to_shared_memory, from_shared_me
 from multiprocessing import Pool, Process
 from .variant_to_nodes import VariantToNodes
 import itertools
+from dataclasses import dataclass
+from .haplotype_nodes import get_variant_matrix_as_chunks_with_variant_ids
+import bionumpy as bnp
+from bionumpy.delimited_buffers import VCFBuffer, VCFMatrixBuffer, PhasedVCFMatrixBuffer
+import gzip
+
+
+@dataclass
+class PhasedGenotypeMatrix:
+    matrix: np.ndarray
+
+    @classmethod
+    def from_vcf(cls, vcf_file_name, n_variants, n_individuals):
+        t = time.perf_counter()
+        matrix = np.zeros((n_variants, n_individuals), dtype=np.uint8)
+        logging.info("Matrix size: %.2f GB" % (matrix.nbytes/1000000000))
+        file = bnp.open(vcf_file_name, chunk_size=5 * 10000000, buffer_type=PhasedVCFMatrixBuffer, mode="stream")
+        #for start_variant, end_variant, variants in get_variant_matrix_as_chunks_with_variant_ids(vcf_file_name):
+        pos = 0
+        for chunk in file:
+            matrix[pos:pos+chunk.genotypes.shape[0],:] = chunk.genotypes
+            pos += chunk.genotypes.shape[0]
+            logging.info("Processed %d variants. Done with %d variants in %.4f sec" % (
+                len(chunk.genotypes),
+                pos,
+                time.perf_counter()-t
+            ))
+
+        return cls(matrix)
+
+    @classmethod
+    def from_txt(cls, txt_file_name, n_variants, n_individuals):
+        t0 = time.perf_counter()
+        data_size = n_individuals * n_variants * 2
+        logging.info("N individuals: %d" % n_individuals)
+        logging.info("N variants: %d" % n_variants)
+        logging.info("Data size is %d" % data_size)
+        data = np.zeros(data_size, dtype=np.uint8)
+        logging.info("Made data array")
+        f = gzip.open(txt_file_name, "rb")
+        f.readinto(data)
+
+        logging.info("Read data. Time spent: %.3f sec " % (time.perf_counter() - t0))
+
+        assert np.max(data) <= 49, "There are values larger than 49 (1) in data. Invalid VCF txt format"
+        assert np.min(data) >= 48, "There are values lower than 48 (0) in data. Invalid VCF txt format"
+
+        logging.info("Done validating")
+
+        data = data - 48
+        genotypes = data[::2] * 2 + data[1::2]
+        logging.info("Made genotypes. Time spent: %.3f sec" % (time.perf_counter() - t0))
+
+        assert np.max(data) <= 3
+        assert np.min(data) >= 0
+
+        return cls(genotypes.reshape((n_variants, n_individuals)))
+
 
 class MostSimilarVariantLookup:
     properties = {"lookup_array", "prob_same_genotype"}
@@ -250,6 +308,7 @@ class GenotypeMatrixAnalyser:
         lookup = from_shared_memory(MostSimilarVariantLookup, "most_similar_variant_lookup")
 
         return lookup
+
 
 
 class GenotypeMatrix:

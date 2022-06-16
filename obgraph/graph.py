@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from npstructures import RaggedArray, HashTable
 from shared_memory_wrapper import to_file, from_file
 from graph_kmer_index.nplist import NpList
+from .util import encode_chromosome
 
 
 class VariantNotFoundException(Exception):
@@ -140,6 +141,20 @@ class Graph:
 
         return self.get_numeric_node_sequence(int(node))[int(offset)]
 
+
+    def get_numeric_node_sequences_by_chromosomes(self, nodes):
+        assert nodes[0] == self.chromosome_start_nodes[0], "First node must be first chromosome node"
+
+        # yields one sequence per chromosome, assumes the nodes are sorted so that
+        # nodes on same chromosome are together
+        split_positions = list(np.where(np.in1d(nodes, self.chromosome_start_nodes))[0])
+        #split_positions = list(np.searchsorted(nodes, self.chromosome_start_nodes))
+        split_positions.append(nodes[-1])
+
+        for start, end in zip(split_positions[0:-1], split_positions[1:]):
+            yield self.get_numeric_node_sequences(nodes[start:end])
+
+
     def get_numeric_node_sequences(self, nodes):
         return self.sequences[nodes].ravel()
 
@@ -157,7 +172,11 @@ class Graph:
 
     def get_node_offset_at_chromosome_and_chromosome_offset(self, chromosome, offset):
         chromosome_position = chromosome - 1
-        chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+        try:
+            chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+        except IndexError:
+            chromosome_start_node = self.chromosome_start_nodes[0]
+
         chromosome_offset = self.get_ref_offset_at_node(chromosome_start_node)
         real_offset = int(chromosome_offset + offset)
         node = self.get_node_at_chromosome_and_chromosome_offset(chromosome, offset)
@@ -169,8 +188,14 @@ class Graph:
         try:
             chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
         except IndexError:
-            logging.error("Could not find chromosome start position for chromosome %d. Chromosome start nodes are %s" % (chromosome, self.chromosome_start_nodes))
-            raise
+            if len(self.chromosome_start_nodes) == 1:
+                #logging.info("Assuming chromosome start node is the only start node %d" % self.chromosome_start_nodes[0])
+                chromosome_start_node = self.chromosome_start_nodes[0]
+            else:
+                logging.error(
+                    "Could not find chromosome start position for chromosome %d. Chromosome start nodes are %s" % (
+                        chromosome, self.chromosome_start_nodes))
+                raise
 
 
         # Shift offset with chromosome start offset
@@ -258,10 +283,13 @@ class Graph:
         try:
             chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
         except IndexError:
-            logging.error(
+            if len(self.chromosome_start_nodes) == 1:
+                chromosome_start_node = self.chromosome_start_nodes[0]
+            else:
+                logging.error(
                 "Could not find chromosome start position for chromosome %d. Chromosome start nodes are %s" % (
                     chromosome, self.chromosome_start_nodes))
-            raise
+                raise
         chromosome_offset = self.get_ref_offset_at_node(chromosome_start_node)
         return self.get_ref_offset_at_node(node) - chromosome_offset
 
@@ -540,7 +568,12 @@ class Graph:
         for possible_snp_node in possible_snp_nodes:
             # Not true if deletion before snp
             #assert len(possible_snp_node) == 1, "SNP nodes should only be one node"
-            assert len([n for n in possible_snp_node if self.get_node_size(n) > 0]) == 1, "There should only be one non-empty SNP node"
+            if len([n for n in possible_snp_node if self.get_node_size(n) > 0]) != 1:
+                logging.error("There should only be one non-empty SNP node")
+                logging.info("Found nodes: %s" % (possible_snp_node))
+                logging.info("prev node is %s, variant bases is %s" % (prev_node, variant_bases))
+                raise Exception("error")
+
             potential_next = possible_snp_node[-1]  # Get last node, this will be the snp node if there are more nodes
             assert self.get_node_size(potential_next) > 0
             # Also require that this node shares next node with our ref snp node, if not this could be a false match against an indel node
@@ -675,7 +708,11 @@ class Graph:
         assert next_ref_node in self.get_edges(variant_node), "Failed parsing insertion %s. Found %d as next ref node after variant node, but there is no edge from variantnode %d to %d" % (variant, next_ref_node, variant_node, next_ref_node)
         # If there are multiple insertions, one could find the correct dummy node by choosing the one that goes to next node with lowest ref pos
         dummy_nodes = [node for node in self.get_edges(node) if next_ref_node in self.get_edges(node) and self.get_node_size(node) == 0]
-        assert len(dummy_nodes) == 1, "Error when parsing insertion %s. There are not exactly 1 insertion node between %d and %d. Nodes of length 0 between are %s" % (variant, node, next_ref_node, dummy_nodes)
+        if len(dummy_nodes) != 1:
+            logging.error("Edges from %d are %s" % (node, self.get_edges(node)))
+            logging.error("Error when parsing insertion %s. There are not exactly 1 insertion node between %d and %d. Nodes of length 0 between are %s" % (variant, node, next_ref_node, dummy_nodes))
+            raise Exception("")
+
         insertion_node = dummy_nodes[0]
         assert next_ref_node in self.get_edges(insertion_node), "Failed parsing insertion %s. Found %d as next ref node after dummy node, but there is no edge from dumy node %d to %d" % (variant, next_ref_node, insertion_node, next_ref_node)
 
@@ -698,7 +735,7 @@ class Graph:
 
         for i, variant in enumerate(variants):
             if use_chromosome is not None:
-                variant.chromosome = use_chromosome
+                variant.chromosome = encode_chromosome(use_chromosome)
 
             if i % 1000000 == 0:
                 logging.info("%d variants processed" % i)

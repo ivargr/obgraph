@@ -4,11 +4,19 @@ import logging
 from .graph import VariantNotFoundException, Graph
 import pickle
 from multiprocessing import Pool, Process
-from shared_memory_wrapper.shared_memory import object_to_shared_memory, object_from_shared_memory
+from shared_memory_wrapper.shared_memory import object_to_shared_memory, object_from_shared_memory, get_shared_pool, close_shared_pool, from_file, to_file
 from itertools import repeat
 from .traversing import traverse_graph_by_following_nodes
 import random
-
+from npstructures import RaggedArray
+from .util import phased_genotype_matrix_to_haplotype_matrix
+from graph_kmer_index.nplist import NpList
+import bionumpy as bnp
+from bionumpy.delimited_buffers import VCFBuffer, VCFMatrixBuffer, PhasedVCFMatrixBuffer
+import time
+from shared_memory_wrapper.util import parallel_map_reduce, ConcatenateReducer
+from .util import log_memory_usage_now
+from dataclasses import dataclass
 
 class GenotypeToNodes:
     def __init__(self):
@@ -18,6 +26,191 @@ class GenotypeToNodes:
     @classmethod
     def make_from_n_random_haplotypes(cls, graph, variants, n_haplotypes=10):
         pass
+
+
+@dataclass
+class DiscBackedGenotypeMatrix:
+    file_name: str
+    n_variants: int
+    n_individuals: int
+
+    def get_individual_genotypes(self, individual):
+        start = individual * n_variants
+        end = start + n_variants
+        return np.fromfile(self.file_name, offset=individual*self.n_variants, count=n_variants)
+
+
+class DiscBackedHaplotypeToNodes:
+    def __init__(self, file_name, offsets, lengths):
+        self._file_name = file_name
+        self._offsets = offsets
+        self._lengths = lengths
+
+    def get_nodes(self, haplotype):
+        return np.fromfile(self._file_name,
+                           offset=self._offsets[haplotype]*8,  # *8 because bytes
+                           count=self._lengths[haplotype],
+                           dtype=np.int64)
+
+    def __getitem__(self, item):
+        return self.get_nodes(item)
+
+    @classmethod
+    def from_phased_genotype_matrix(cls, genotype_matrix, variant_to_nodes):
+        out_file_name = str(np.random.randint(0, 999999999999)) + ".haplotype_to_nodes"
+        out_file = open(out_file_name, "ab+")
+
+        offsets = []
+        lengths = []
+        offset = 0
+
+        n_variants = genotype_matrix.shape[0]
+        logging.info("%d variants" % n_variants)
+
+        for individual in range(genotype_matrix.shape[1]):
+            logging.info("Individual %d/%d" % (individual, genotype_matrix.shape[1]))
+            has_variant = phased_genotype_matrix_to_haplotype_matrix(genotype_matrix[:,individual].reshape(n_variants, 1))
+            assert has_variant.shape[1] == 2
+            for haplotype in [0, 1]:
+                offsets.append(offset)
+                has_node = np.nonzero(has_variant[:, haplotype])[0]
+                nodes = variant_to_nodes.var_nodes[has_node].astype(np.int64)
+                length = len(nodes)
+                logging.info("%d nodes" % length)
+                lengths.append(length)
+                offset += length
+                out_file.write(nodes)
+
+        out_file.close()
+
+        return cls(out_file_name, np.array(offsets, dtype=np.uint32), np.array(lengths, dtype=np.uint32))
+
+
+class HaplotypeToNodesRagged:
+    def __init__(self, haplotype_to_nodes: RaggedArray):
+        self.haplotype_to_nodes = haplotype_to_nodes
+
+    def to_file(self, file_name):
+        to_file(self, file_name)
+
+    def n_haplotypes(self):
+        return len(self.haplotype_to_nodes)
+
+    def get_nodes(self, haplotype):
+        assert type(haplotype) == int
+        return self.haplotype_to_nodes[haplotype]
+
+    def __getitem__(self, item):
+        return self.get_nodes(item)
+
+    def get_n_haplotypes_on_nodes_array(self, n_nodes):
+        return NotImplemented
+
+    @classmethod
+    def from_file(cls, file_name):
+        return from_file(file_name)
+
+
+def get_variant_matrix_as_chunks_with_variant_ids(vcf_file_name, write_to_shared_memory=False):
+    file = bnp.open(vcf_file_name, chunk_size=5*10000000, buffer_type=PhasedVCFMatrixBuffer, mode="stream")
+    variant_start_id = 0
+    t = time.perf_counter()
+    for chunk in file:
+        #genotypes = object_to_shared_memory(chunk.genotypes)
+        #logging.info(chunk.genotypes.dtype)
+        #"logging.info("Done writing genotypes to shared memory")
+        #logging.info("Done writing genotypes to shared memory. Took %.4 sec" % (time.perf_counter()-t))
+        logging.info("Took %3.f sec to read %d reads" % (time.perf_counter()-t, chunk.genotypes.shape[0]))
+        if write_to_shared_memory:
+            logging.info("Writing genotypes to shared memory")
+            genotypes = object_to_shared_memory(chunk.genotypes)
+        else:
+            genotypes = chunk.genotypes
+
+        yield variant_start_id, variant_start_id+chunk.genotypes.shape[0], genotypes
+        logging.info("Took %3.f sec to yield %d reads" % (time.perf_counter()-t, chunk.genotypes.shape[0]))
+        variant_start_id += chunk.genotypes.shape[0]
+        t = time.perf_counter()
+
+
+def make_ragged_haplotype_to_nodes(variant_to_nodes, phased_genotype_matrix, n_threads=4):
+    output = []
+    t = time.perf_counter()
+    logging.info("converting matrix")
+    n_haplotypes = phased_genotype_matrix.shape[1] * 2
+    logging.info("N haplotypes: %d" % n_haplotypes)
+    has_variant = phased_genotype_matrix_to_haplotype_matrix(phased_genotype_matrix)
+    phased_genotype_matrix = None  # free memory
+    logging.info("Matrix converted, time spent: %.3f" % (time.perf_counter()-t))
+    log_memory_usage_now("")
+    has_variant = has_variant.T  # transpose to use hack with nonzero
+    nonzero = np.nonzero(has_variant)  # last element is variants that individuals have, first element are the individuals
+    has_variant = None  # free memory
+
+    logging.info("Size of nonzero: %.2f / %.2f GB" % (nonzero[0].nbytes / 1000000000, nonzero[1].nbytes / 1000000000))
+    log_memory_usage_now("")
+    logging.info("N nonzero elements: %d" % len(nonzero[0]))
+    logging.info("Nonzero done, time spent: %.3f" % (time.perf_counter()-t))
+    ragged_data = variant_to_nodes.var_nodes[nonzero[1]]
+    logging.info("Size of ragged data: %.3f GB" % (ragged_data.nbytes / 1000000000))
+    logging.info("Ragged data made, time spent: %.3f" % (time.perf_counter()-t))
+    log_memory_usage_now("")
+    ragged_lengths = np.bincount(nonzero[0], minlength=n_haplotypes)
+    nonzero = None
+    logging.info("Size of ragged lengths: %.3f GB" % (ragged_lengths.nbytes / 1000000000))
+    log_memory_usage_now("")
+    logging.info("Ragged lengths made, time spent: %.3f" % (time.perf_counter()-t))
+    out = HaplotypeToNodesRagged(RaggedArray(ragged_data, ragged_lengths))
+    log_memory_usage_now("")
+    logging.info("Ragged array made, time spent: %.3f" % (time.perf_counter()-t))
+    return out
+
+
+    for haplotype in range(n_haplotypes):
+        if haplotype % 50 == 0:
+            logging.info("Haplotype %d" % (haplotype))
+        nodes = variant_to_nodes.var_nodes[np.nonzero(has_variant[:, haplotype])[0]]
+        output[haplotype] = nodes
+        ragged_lengths[len(nodes)]
+
+    logging.info("Spent %.4f sec" % (time.perf_counter() - t))
+    return HaplotypeToNodesRagged(RaggedArray(ragged_data, ragged_lengths))
+
+    """
+    pool = get_shared_pool(n_threads)
+
+    variant_start_id = 0
+    chunks = get_variant_matrix_as_chunks_with_variant_ids(vcf_file_name, True)
+    results = parallel_map_reduce(_make_ragged_haplotype_to_nodes_for_variant_chunk,
+                                  (n_haplotypes, variant_to_nodes), chunks, ConcatenateReducer(axis=-1), n_threads)
+    """
+
+    #for variant_start_id, variant_end_id, chunk in chunks:
+    #    output = _make_ragged_haplotype_to_nodes_for_variant_chunk(chunk, n_haplotypes, variant_to_nodes)
+    #    results.append(RaggedArray(output))
+
+    return HaplotypeToNodesRagged(results)
+
+
+def _make_ragged_haplotype_to_nodes_for_variant_chunk(n_haplotypes,
+                                                      variant_to_nodes, chunk):
+    variant_start_id, variant_end_id, chunk = chunk
+    chunk = object_from_shared_memory(chunk)
+    t = time.perf_counter()
+    output = [NpList(dtype=np.uint32) for _ in range(n_haplotypes)]
+    n_variants_in_chunk = chunk.shape[0]
+    logging.info("Converting to haplotype matrix")
+    has_variant = phased_genotype_matrix_to_haplotype_matrix(chunk)
+    variant_nodes_for_chunk = variant_to_nodes.var_nodes[variant_start_id:variant_end_id]
+    for haplotype in range(n_haplotypes):
+        if haplotype % 500 == 0:
+            logging.info("Haplotype %d, variant id %d" % (haplotype, variant_start_id))
+        nodes = variant_nodes_for_chunk[np.nonzero(has_variant[:, haplotype])[0]]
+        output[haplotype].extend(nodes)
+    output = [n.get_nparray() for n in output]
+    logging.info("Spent %.4f sec on %d variants" % (time.perf_counter() - t, n_variants_in_chunk))
+    return RaggedArray(output)
+
 
 class HaplotypeToNodes:
     properties = {"_haplotype_to_index", "_haplotype_to_n_nodes", "_nodes"}
@@ -195,8 +388,22 @@ class HaplotypeToNodes:
             genotypes = variant.vcf_line.split()[9:]
             for haplotype in haplotypes:
                 individual_number = haplotype // 2
+                assert individual_number < len(genotypes)
                 haplotype_number = haplotype - individual_number * 2
-                haplotype_string = genotypes[individual_number].replace("/", "|").split("|")[haplotype_number]
+                assert haplotype_number == 0 or haplotype_number == 1
+                genotype_string = genotypes[individual_number].replace("/", "|")
+                if genotype_string == ".":
+                    continue
+
+                try:
+                    haplotype_string = genotype_string.split("|")[haplotype_number]
+                except IndexError:
+                    logging.info("genotype string: %s" % genotype_string)
+                    logging.error("Could not find haplotype %d for individual %d" % (haplotype_number, individual_number))
+                    logging.error("Genotypes: %s" % genotypes)
+                    logging.info("N genotypes: %d " % len(genotypes))
+                    raise
+
                 if haplotype_string == "1":
                     # Follows the variant, add variant node here. Do not store reference node in order to svae space
                     flat_haplotypes.append(haplotype)
@@ -213,19 +420,23 @@ class HaplotypeToNodes:
         flat_haplotypes = []
 
         logging.info("Making pool")
-        pool = Pool(n_threads)
+        #pool = Pool(n_threads)
+        pool = get_shared_pool(n_threads)
         logging.info("Made pool")
         shared_memory_graph_name = object_to_shared_memory(graph)
         logging.info("Put graph in shared memory")
 
+        i = 0
         for haplotypes, nodes in pool.starmap(HaplotypeToNodes._multiprocess_wrapper, zip(repeat(shared_memory_graph_name), variants.get_chunks(chunk_size=1000), repeat(limit_to_n_haplotypes))):
-            logging.info("Done with 1 iteration")
+            logging.info("Done with %d iterations" % i)
+            i += 1
             flat_haplotypes.extend(haplotypes)
             flat_nodes.extend(nodes)
             logging.info("Added nodes and haplotypes")
 
         logging.info("Done processing all variants")
 
+        close_shared_pool()
         return cls.from_flat_haplotypes_and_nodes(flat_haplotypes, flat_nodes)
 
 
