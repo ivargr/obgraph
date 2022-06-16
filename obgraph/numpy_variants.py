@@ -19,7 +19,7 @@ class NumpyVariants:
         data = np.load(file_name)
         return cls(data["header"], data["variants"])
 
-    def to_vcf_with_genotypes(self, file_name, sample_name, genotypes, add_header_lines=None, ignore_homo_ref=False):
+    def to_vcf_with_genotypes(self, file_name, sample_name, genotypes, add_header_lines=None, ignore_homo_ref=False, add_genotype_likelyhoods=None):
         logging.info("Writing to file %s" % file_name)
         if ignore_homo_ref:
             logging.info("Will not write variants with genotype 0/0")
@@ -44,7 +44,20 @@ class NumpyVariants:
                 if i % 1000000 == 0:
                     logging.info("%d variants written to file." % i)
 
-                lines.append("%s\t%s\n" % (variant, genotype))
+                line = "%s\t%s\n" % (variant, genotype)
+                if add_genotype_likelyhoods is not None:
+                    likelyhoods = add_genotype_likelyhoods[i]
+                    phred_likelyhoods = [
+                        #float(round(np.maximum(0, np.minimum(255, -prob * np.log10(np.e))), 4))
+                        int(np.minimum(2550000000000, -prob * np.log10(np.e)))
+                        for prob in likelyhoods
+                    ]
+                    phred_likelyhoods_str = ",".join(str(p) for p in phred_likelyhoods)
+                    #print(likelyhoods, phred_likelyhoods, np.exp(likelyhoods))
+                    line = "%s:PL\t%s:%s\n" % (variant, genotype, phred_likelyhoods_str)
+                    #print(line)
+
+                lines.append(line)
 
             f.writelines(lines)
 
