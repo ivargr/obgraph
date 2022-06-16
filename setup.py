@@ -13,7 +13,7 @@ setup(name='obgraph',
       license='MIT',
       packages=["obgraph"],
       zip_safe=False,
-      install_requires=['cython', 'numpy==1.20.3', 'tqdm', 'pathos', 'graph_kmer_index>=0.0.16', 'shared_memory_wrapper>=0.0.7', 'bionumpy'],
+      install_requires=['cython', 'numpy==1.21.0', 'tqdm', 'pathos', 'graph_kmer_index>=0.0.16', 'shared_memory_wrapper>=0.0.7', 'bionumpy'],
       classifiers=[
             'Programming Language :: Python :: 3'
       ],
