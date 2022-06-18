@@ -46,18 +46,34 @@ class DiscBackedHaplotypeToNodes:
         self._offsets = offsets
         self._lengths = lengths
 
+    def n_haplotypes(self):
+        return len(self._offsets)
+
     def get_nodes(self, haplotype):
-        return np.fromfile(self._file_name,
+        t = time.perf_counter()
+        out = np.fromfile(self._file_name,
                            offset=self._offsets[haplotype]*8,  # *8 because bytes
                            count=self._lengths[haplotype],
                            dtype=np.int64)
+        logging.info("Took %.4f sec to read haplotype nodes from disc" % (time.perf_counter()-t)) 
+        return out
 
     def __getitem__(self, item):
         return self.get_nodes(item)
 
+
     @classmethod
-    def from_phased_genotype_matrix(cls, genotype_matrix, variant_to_nodes):
-        out_file_name = str(np.random.randint(0, 999999999999)) + ".haplotype_to_nodes"
+    def from_file(cls, file_name):
+        o = from_file(file_name)
+        o._file_name = file_name + ".haplotype_nodes"
+        return o
+
+    def to_file(self, file_name):
+        to_file(self, file_name)
+
+    @classmethod
+    def from_phased_genotype_matrix(cls, genotype_matrix, variant_to_nodes, out_file_name):
+        out_file_name = out_file_name + ".haplotype_nodes"
         out_file = open(out_file_name, "ab+")
 
         offsets = []

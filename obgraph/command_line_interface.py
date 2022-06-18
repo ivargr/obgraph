@@ -160,10 +160,11 @@ def run_argument_parser(args):
         if args.make_disc_backed:
             from .haplotype_nodes import DiscBackedHaplotypeToNodes
             logging.info("Making disc backed")
-            result = DiscBackedHaplotypeToNodes.from_phased_genotype_matrix(phased_genotype_matrix, variant_to_nodes)
+            result = DiscBackedHaplotypeToNodes.from_phased_genotype_matrix(phased_genotype_matrix, variant_to_nodes, args.out_file_name)
+            result.to_file(args.out_file_name)
         else:
             result = make_ragged_haplotype_to_nodes(variant_to_nodes, phased_genotype_matrix, args.n_threads)
-        to_file(result, args.out_file_name)
+            to_file(result, args.out_file_name)
 
     subparser = subparsers.add_parser("make_haplotype_to_nodes_bnp")
     subparser.add_argument("-g", "--variant-to-nodes", required=True)

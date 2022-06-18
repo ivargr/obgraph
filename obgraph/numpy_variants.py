@@ -49,12 +49,18 @@ class NumpyVariants:
                     likelyhoods = add_genotype_likelyhoods[i]
                     phred_likelyhoods = [
                         #float(round(np.maximum(0, np.minimum(255, -prob * np.log10(np.e))), 4))
-                        int(np.minimum(2550000000000, -prob * np.log10(np.e)))
+                        int(np.minimum(2550000000000, -10 * prob * np.log10(np.e)))
                         for prob in likelyhoods
                     ]
+
+                    genotype_likelyhoods = [
+                        round(prob * np.log10(np.e), 0) for prob in likelyhoods
+                    ]
+
                     phred_likelyhoods_str = ",".join(str(p) for p in phred_likelyhoods)
+                    gl_str = ",".join(str(p) for p in genotype_likelyhoods)
                     #print(likelyhoods, phred_likelyhoods, np.exp(likelyhoods))
-                    line = "%s:PL\t%s:%s\n" % (variant, genotype, phred_likelyhoods_str)
+                    line = "%s:PL:GL\t%s:%s:%s\n" % (variant, genotype, phred_likelyhoods_str, gl_str)
                     #print(line)
 
                 lines.append(line)
