@@ -23,6 +23,11 @@ class NumpyVariants:
         logging.info("Writing to file %s" % file_name)
         if ignore_homo_ref:
             logging.info("Will not write variants with genotype 0/0")
+
+        if add_genotype_likelyhoods is not None:
+            p = add_genotype_likelyhoods
+            genotype_likelihoods = p * np.log10(np.e)
+
         with open(file_name, "w") as f:
             # f.write(self._header_lines)
             for header_line in self.header:  # last element is empty
@@ -46,21 +51,17 @@ class NumpyVariants:
 
                 line = "%s\t%s\n" % (variant, genotype)
                 if add_genotype_likelyhoods is not None:
-                    likelyhoods = add_genotype_likelyhoods[i]
+                    """
+                    #likelyhoods = add_genotype_likelyhoods[i]
                     phred_likelyhoods = [
                         #float(round(np.maximum(0, np.minimum(255, -prob * np.log10(np.e))), 4))
                         int(np.minimum(2550000000000, -10 * prob * np.log10(np.e)))
                         for prob in likelyhoods
                     ]
-
-                    genotype_likelyhoods = [
-                        round(prob * np.log10(np.e), 0) for prob in likelyhoods
-                    ]
-
-                    phred_likelyhoods_str = ",".join(str(p) for p in phred_likelyhoods)
-                    gl_str = ",".join(str(p) for p in genotype_likelyhoods)
+                    """
+                    gl_str = ",".join(str(round(p, 4)) for p in genotype_likelihoods[i])
                     #print(likelyhoods, phred_likelyhoods, np.exp(likelyhoods))
-                    line = "%s:PL:GL\t%s:%s:%s\n" % (variant, genotype, phred_likelyhoods_str, gl_str)
+                    line = "%s:GL\t%s:%s\n" % (variant, genotype, gl_str)
                     #print(line)
 
                 lines.append(line)

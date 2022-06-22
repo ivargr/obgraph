@@ -9,9 +9,21 @@ import itertools
 from dataclasses import dataclass
 from .haplotype_nodes import get_variant_matrix_as_chunks_with_variant_ids
 import bionumpy as bnp
-from bionumpy.delimited_buffers import VCFBuffer, VCFMatrixBuffer, PhasedVCFMatrixBuffer
+from bionumpy.delimited_buffers import VCFBuffer, VCFMatrixBuffer
 import gzip
 
+
+
+class PhasedGenotypeEncoding:
+    @classmethod
+    def from_bytes(cls, bytes_array):
+        assert bytes_array.shape[-1] == 3
+        return 2*(bytes_array[..., 0] == ord("1")) + (
+                bytes_array[..., 2] == ord("1")
+        ).astype(np.int8)
+
+class PhasedVCFMatrixBuffer(VCFMatrixBuffer):
+    genotype_encoding = PhasedGenotypeEncoding
 
 @dataclass
 class PhasedGenotypeMatrix:

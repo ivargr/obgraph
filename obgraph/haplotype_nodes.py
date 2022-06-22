@@ -12,11 +12,25 @@ from npstructures import RaggedArray
 from .util import phased_genotype_matrix_to_haplotype_matrix
 from graph_kmer_index.nplist import NpList
 import bionumpy as bnp
-from bionumpy.delimited_buffers import VCFBuffer, VCFMatrixBuffer, PhasedVCFMatrixBuffer
+from bionumpy.delimited_buffers import VCFBuffer, VCFMatrixBuffer
 import time
 from shared_memory_wrapper.util import parallel_map_reduce, ConcatenateReducer
 from .util import log_memory_usage_now
 from dataclasses import dataclass
+
+
+class PhasedGenotypeEncoding:
+    @classmethod
+    def from_bytes(cls, bytes_array):
+        assert bytes_array.shape[-1] == 3
+        return 2*(bytes_array[..., 0] == ord("1")) + (
+            bytes_array[..., 2] == ord("1")
+        ).astype(np.int8)
+
+class PhasedVCFMatrixBuffer(VCFMatrixBuffer):
+    genotype_encoding = PhasedGenotypeEncoding
+
+
 
 class GenotypeToNodes:
     def __init__(self):

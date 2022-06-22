@@ -5,7 +5,7 @@ from Cython.Distutils import build_ext
 import numpy as np
 
 setup(name='obgraph',
-      version='0.0.20',
+      version='0.0.26',
       description='obgraph',
       url='http://github.com/ivargr/obgraph',
       author='Ivar Grytten',
@@ -13,7 +13,7 @@ setup(name='obgraph',
       license='MIT',
       packages=["obgraph"],
       zip_safe=False,
-      install_requires=['cython', 'numpy==1.20.3', 'tqdm', 'pathos', 'graph_kmer_index>=0.0.16', 'shared_memory_wrapper>=0.0.7', 'bionumpy', 'npstructures'],
+      install_requires=['cython', 'numpy', 'tqdm', 'pathos', 'shared_memory_wrapper>=0.0.7', 'bionumpy', 'npstructures'],
       classifiers=[
             'Programming Language :: Python :: 3'
       ],

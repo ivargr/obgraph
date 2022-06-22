@@ -21,25 +21,12 @@ from shared_memory_wrapper.shared_memory import from_shared_memory, to_shared_me
 from multiprocessing import Pool
 import time
 from itertools import repeat
-from graph_kmer_index.flat_kmers import letter_sequence_to_numeric
 from .util import create_coordinate_map
 from .util import fill_zeros_with_last
 from .variant_to_nodes import VariantToNodes
 from npstructures import RaggedArray
 
 
-def np_letter_sequence_to_numeric(letter_sequence):
-    return letter_sequence_to_numeric(letter_sequence.astype("|S1").view(np.int8)).astype(np.uint8)
-
-def get_numeric_node_sequence_single_thread(interval):
-    from_pos, to_pos = interval
-    start_time = time.time()
-    graph = from_shared_memory(Graph, "graph_shared")
-    numeric_node_sequences = from_shared_memory(SingleSharedArray, "numeric_node_sequences")
-    result = np_letter_sequence_to_numeric(graph.node_sequences[from_pos:to_pos])
-    numeric_node_sequences.array[from_pos:to_pos] = result
-    logging.info("Spent %.3f s on interval" % (time.time()-start_time))
-    return from_pos, to_pos
 
 
 def merge_graphs_command(args):
