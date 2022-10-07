@@ -62,8 +62,8 @@ class PhasedGenotypeMatrix:
 
         logging.info("Read data. Time spent: %.3f sec " % (time.perf_counter() - t0))
 
-        assert np.max(data) <= 49, "There are values larger than 49 (1) in data. Invalid VCF txt format"
-        assert np.min(data) >= 48, "There are values lower than 48 (0) in data. Invalid VCF txt format"
+        assert np.max(data) <= 49, "There are values larger than 49 (1) in data. Invalid VCF txt format " + str(np.where(data > 49))
+        assert np.min(data) >= 48, "There are values lower than 48 (0) in data (%d). Invalid VCF txt format %s"  % (np.min(data), str(np.where(data < 48)))
 
         logging.info("Done validating")
 

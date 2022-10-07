@@ -337,7 +337,6 @@ class Graph:
         node_sizes_array = np.zeros(nodes[-1]+1, dtype=np.uint32)
         node_sizes_array[nodes] = node_sizes
         nodes = node_sizes_array
-        logging.info("Node sizes array: %s" % node_sizes_array)
 
         #from_nodes = []
 
@@ -346,9 +345,6 @@ class Graph:
 
         to_nodes = np.concatenate([edges[n] for n in range(max_node+1) if n in edges]).astype(np.uint32)
         n_edges = np.array([len(edges[n]) if n in edges else 0 for n in range(max_node+1)], dtype=np.uint8)
-
-        logging.info("To nodes: %s" % to_nodes)
-        logging.info("N edges: %s" % n_edges)
 
         to_nodes_set = set(to_nodes)
         logging.info("Done preparing data from dicts")
