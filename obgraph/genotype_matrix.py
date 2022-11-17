@@ -9,21 +9,9 @@ import itertools
 from dataclasses import dataclass
 from .haplotype_nodes import get_variant_matrix_as_chunks_with_variant_ids
 import bionumpy as bnp
-from bionumpy.delimited_buffers import VCFBuffer, VCFMatrixBuffer
 import gzip
 
 
-
-class PhasedGenotypeEncoding:
-    @classmethod
-    def from_bytes(cls, bytes_array):
-        assert bytes_array.shape[-1] == 3
-        return 2*(bytes_array[..., 0] == ord("1")) + (
-                bytes_array[..., 2] == ord("1")
-        ).astype(np.int8)
-
-class PhasedVCFMatrixBuffer(VCFMatrixBuffer):
-    genotype_encoding = PhasedGenotypeEncoding
 
 @dataclass
 class PhasedGenotypeMatrix:
@@ -34,14 +22,15 @@ class PhasedGenotypeMatrix:
         t = time.perf_counter()
         matrix = np.zeros((n_variants, n_individuals), dtype=np.uint8)
         logging.info("Matrix size: %.2f GB" % (matrix.nbytes/1000000000))
-        file = bnp.open(vcf_file_name, chunk_size=5 * 10000000, buffer_type=PhasedVCFMatrixBuffer, mode="stream")
+        file = bnp.open(vcf_file_name, buffer_type=bnp.PhasedVCFMatrixBuffer)
         #for start_variant, end_variant, variants in get_variant_matrix_as_chunks_with_variant_ids(vcf_file_name):
         pos = 0
-        for chunk in file:
-            matrix[pos:pos+chunk.genotypes.shape[0],:] = chunk.genotypes
-            pos += chunk.genotypes.shape[0]
+        for chunk in file.read_chunk(min_chunk_size=15000000):
+            genotypes = chunk.genotypes.raw()
+            matrix[pos:pos+chunk.genotypes.shape[0],:] = genotypes
+            pos += genotypes.shape[0]
             logging.info("Processed %d variants. Done with %d variants in %.4f sec" % (
-                len(chunk.genotypes),
+                len(genotypes),
                 pos,
                 time.perf_counter()-t
             ))

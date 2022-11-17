@@ -126,7 +126,14 @@ class GraphConstructor:
                 #logging.info("   Making a reference node %d. Pos before/after: %d/%d." % (
                 #self._current_node_id, prev_ref_node_end, breakpoint_position + 1))
                 try:
-                    prev_ref_node_id = self._make_node(prev_ref_node_end, breakpoint_position+1, self.reference_sequence[prev_ref_node_end+1:breakpoint_position+1], is_ref_node=True)
+                    sequence_between_breakpoints = self.reference_sequence[prev_ref_node_end+1:breakpoint_position+1]
+                    if sequence_between_breakpoints == "":
+                        logging.error("Empty sequence on ref node. Prev ref node ended at %d, breakpoint position: %s" % (prev_ref_node_end, breakpoint_position))
+                        logging.error("Is your reference genome matching the vcf?")
+                        assert False
+
+                    prev_ref_node_id = self._make_node(prev_ref_node_end, breakpoint_position+1,
+                                                       sequence_between_breakpoints, is_ref_node=True)
                 except EmptyNodeException:
                     logging.error("Tried making a node between pos %d and %d" % (prev_ref_node_end, breakpoint_position+1))
                     logging.info("Variant is %s" % variant)
@@ -172,7 +179,7 @@ class GraphConstructor:
         # Assume variants are already sorted
         logging.info("Traversing variants")
         for i, variant in enumerate(self.variants):
-            if i % 100 == 0:
+            if i % 10000 == 0:
                 logging.info("%d variants processed" % i)
 
             # Breakpoints are last base pair in a reference node

@@ -18,8 +18,12 @@ class VariantNotFoundException(Exception):
 
 def remap_array(array, from_values, to_values):
     index = np.digitize(array.ravel(), from_values, right=True)
-    return to_values[index].reshape(array.shape)
-
+    try:
+        res = to_values[index].reshape(array.shape)
+    except IndexError:
+        logging.error("Invalid byte values in sequence. Max value: %d" % np.max(array))
+        raise
+    return res
 
 def convert_sequence_array_to_numeric(sequence):
     assert type(sequence) == np.ndarray

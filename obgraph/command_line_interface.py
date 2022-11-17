@@ -347,7 +347,7 @@ def run_argument_parser(args):
         graph = Graph.from_file(args.graph)
 
         for i, variant in enumerate(variants):
-            if i % 1000 == 0:
+            if i % 10000 == 0:
                 logging.info("%d variants processed" % i)
 
             ref_node, var_node = graph.get_variant_nodes(variant)

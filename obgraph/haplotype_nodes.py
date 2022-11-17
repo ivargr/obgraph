@@ -12,23 +12,10 @@ from npstructures import RaggedArray
 from .util import phased_genotype_matrix_to_haplotype_matrix
 from graph_kmer_index.nplist import NpList
 import bionumpy as bnp
-from bionumpy.delimited_buffers import VCFBuffer, VCFMatrixBuffer
 import time
 from shared_memory_wrapper.util import parallel_map_reduce, ConcatenateReducer
 from .util import log_memory_usage_now
 from dataclasses import dataclass
-
-
-class PhasedGenotypeEncoding:
-    @classmethod
-    def from_bytes(cls, bytes_array):
-        assert bytes_array.shape[-1] == 3
-        return 2*(bytes_array[..., 0] == ord("1")) + (
-            bytes_array[..., 2] == ord("1")
-        ).astype(np.int8)
-
-class PhasedVCFMatrixBuffer(VCFMatrixBuffer):
-    genotype_encoding = PhasedGenotypeEncoding
 
 
 
@@ -142,10 +129,10 @@ class HaplotypeToNodesRagged:
 
 
 def get_variant_matrix_as_chunks_with_variant_ids(vcf_file_name, write_to_shared_memory=False):
-    file = bnp.open(vcf_file_name, chunk_size=5*10000000, buffer_type=PhasedVCFMatrixBuffer, mode="stream")
+    file = bnp.open(vcf_file_name, buffer_type=bnp.PhasedVCFMatrixBuffer)
     variant_start_id = 0
     t = time.perf_counter()
-    for chunk in file:
+    for chunk in file.read_chunks(min_chunk_size=5*10000000):
         #genotypes = object_to_shared_memory(chunk.genotypes)
         #logging.info(chunk.genotypes.dtype)
         #"logging.info("Done writing genotypes to shared memory")
@@ -153,9 +140,9 @@ def get_variant_matrix_as_chunks_with_variant_ids(vcf_file_name, write_to_shared
         logging.info("Took %3.f sec to read %d reads" % (time.perf_counter()-t, chunk.genotypes.shape[0]))
         if write_to_shared_memory:
             logging.info("Writing genotypes to shared memory")
-            genotypes = object_to_shared_memory(chunk.genotypes)
+            genotypes = object_to_shared_memory(chunk.genotypes.raw())
         else:
-            genotypes = chunk.genotypes
+            genotypes = chunk.genotypes.raw()
 
         yield variant_start_id, variant_start_id+chunk.genotypes.shape[0], genotypes
         logging.info("Took %3.f sec to yield %d reads" % (time.perf_counter()-t, chunk.genotypes.shape[0]))
