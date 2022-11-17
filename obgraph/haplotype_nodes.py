@@ -523,7 +523,7 @@ class NodeToHaplotypes:
         unique_nodes = nodes[unique_entry_positions]
 
         lookup_size = int(np.max(nodes)) + 1
-        lookup = np.zeros(lookup_size, dtype=np.int)
+        lookup = np.zeros(lookup_size, dtype=int)
         lookup[unique_nodes] = unique_entry_positions
         n_entries = np.ediff1d(unique_entry_positions, to_end=len(nodes) - unique_entry_positions[-1])
         n_haplotypes = np.zeros(lookup_size, dtype=np.uint16)

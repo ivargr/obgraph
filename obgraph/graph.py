@@ -9,7 +9,7 @@ from .mutable_graph import MutableGraph
 from dataclasses import dataclass
 from npstructures import RaggedArray, HashTable
 from shared_memory_wrapper import to_file, from_file
-from graph_kmer_index.nplist import NpList
+from .nplist import NpList
 from .util import encode_chromosome
 
 
