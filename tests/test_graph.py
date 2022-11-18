@@ -26,7 +26,7 @@ def test_from_dicts():
     assert list(g.get_numeric_node_sequence(2)) == [0]
 
     print(g.get_numeric_node_sequence(np.array([1, 2, 3, 4])))
-    assert list(g.get_numeric_node_sequences(np.array([1, 2, 3, 4]))) == [0, 1, 2, 3, 0, 3, 0, 0, 0]
+    assert list(g.get_numeric_node_sequences(np.array([1, 2, 3, 4]))) == [0, 1, 3, 2, 0, 2, 0, 0, 0]
 
     assert g.get_node_at_ref_offset(0) == 1
     assert g.get_node_at_ref_offset(3) == 1
@@ -74,9 +74,9 @@ def test_get_numeric_node_sequences_by_chromosome():
 
     sequences = list(g.get_numeric_node_sequences_by_chromosomes([1, 2, 1000, 20, 23, 50, 51]))
 
-    assert np.all(sequences[0] == [2, 0, 0])
-    assert np.all(sequences[1] == [0, 1, 0, 1, 3])
-    assert np.all(sequences[2] == [0, 0, 0, 3])
+    assert np.all(sequences[0] == [3, 0, 0])
+    assert np.all(sequences[1] == [0, 1, 0, 1, 2])
+    assert np.all(sequences[2] == [0, 0, 0, 2])
 
 
 

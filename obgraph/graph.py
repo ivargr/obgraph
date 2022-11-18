@@ -31,10 +31,10 @@ def convert_sequence_array_to_numeric(sequence):
     # from byte values
     from_values = np.array([65, 67, 71, 84, 97, 99, 103, 116], dtype=np.uint64)  # NB: Must be increasing
     # to internal base values for a, c, t, g
-    to_values = np.array([0, 1, 3, 2, 0, 1, 3, 2], dtype=np.uint64)
+    to_values = np.array([0, 1, 2, 3, 0, 1, 2, 3], dtype=np.uint64)
     return remap_array(sequences_as_byte_values, from_values, to_values).astype(np.uint8)
 
-numeric_to_letter_sequence = np.array(["A", "C", "T", "G"])
+numeric_to_letter_sequence = np.array(["A", "C", "G", "T"])
 
 class Graph:
     def __init__(self, nodes,
