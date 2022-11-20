@@ -10,7 +10,7 @@ from .traversing import traverse_graph_by_following_nodes
 import random
 from npstructures import RaggedArray
 from .util import phased_genotype_matrix_to_haplotype_matrix
-from graph_kmer_index.nplist import NpList
+from .nplist import NpList
 import bionumpy as bnp
 import time
 from shared_memory_wrapper.util import parallel_map_reduce, ConcatenateReducer
