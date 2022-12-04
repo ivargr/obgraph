@@ -1,4 +1,5 @@
 from obgraph import Graph, DummyNodeAdder
+from obgraph.graph_construction import GraphConstructor
 from obgraph.variants import VcfVariants, VcfVariant
 
 def test_simple_insertion():
@@ -185,11 +186,27 @@ def test_insertion_with_identical_false_path():
     assert var_node == 2
 
 
-test_double_deletion_with_snp_inside_first_deletiod_and_false_deletion_path()
-test_double_deletion_with_snp_inside_first_deletion()
-test_insertion_with_identical_false_path()
-test_simple_insertion()
-test_overlapping_deletions()
-test_tricky_case_nested_deletions()
-test_insertion_with_multiple_paths()
-test_insertion_with_multiple_paths()
+def test_full_create_with_two_insertions_at_same_position():
+    variants = VcfVariants(
+        [
+            VcfVariant(1, 3, "A", "ATATT", type="INSERTION"),
+            VcfVariant(1, 3, "A", "ATATTTATT", type="INSERTION")
+        ]
+    )
+
+    ref_sequence = "ATAGGGGGG"
+    constructor = GraphConstructor(ref_sequence, variants)
+    without_dummy = constructor._graph.to_mutable_graph()
+    print(without_dummy)
+    print(without_dummy.nodes)
+
+    assert set(without_dummy.edges[1]) == set([2, 3, 4])
+    assert set(without_dummy.edges[2]) == set([4])
+    assert set(without_dummy.edges[3]) == set([4])
+
+    graph = constructor.get_graph_with_dummy_nodes()
+    assert set(graph.edges[1]) == set([2, 3, 6, 7])
+    assert set(graph.edges[2]) == set([4])
+    assert set(graph.edges[6]) == set([4])
+
+

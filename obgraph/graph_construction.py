@@ -18,6 +18,7 @@ class GraphConstructor:
 
         self._ref_pos_to_node_after = defaultdict(list)
         self._node_to_ref_pos_after = defaultdict(list)
+        self._node_to_ref_pos_before = defaultdict(list)
         self._ref_pos_to_node_start = defaultdict(list)
 
         self._node_ids = []
@@ -102,6 +103,7 @@ class GraphConstructor:
         self._ref_pos_to_node_start[ref_position_before_node+1].append(self._current_node_id)
         #logging.info("         Addding node %d to ref_pos_to_node_after for ref pos %d" % (self._current_node_id, ref_position_before_node))
         self._node_to_ref_pos_after[self._current_node_id].append(ref_position_after_node)
+        self._node_to_ref_pos_before[self._current_node_id].append(ref_position_before_node)
         node_id = self._current_node_id
 
         self._mutable_graph.add_node(node_id, sequence, is_ref_node=is_ref_node)
@@ -158,20 +160,31 @@ class GraphConstructor:
         self._make_node(prev_ref_node_end, len(self.reference_sequence), self.reference_sequence[prev_ref_node_end+1:len(self.reference_sequence)], is_ref_node=True)
 
     def make_edges(self):
-        #logging.info("Ref pos to node after: %s" % self._ref_pos_to_node_after)
-        #logging.info("Ref pos to node start: %s" % self._ref_pos_to_node_start)
-        #logging.info("Node to ref pos after: %s" % self._node_to_ref_pos_after)
+        #print("Ref pos to node after: %s" % self._ref_pos_to_node_after)
+        #print("Ref pos to node start: %s" % self._ref_pos_to_node_start)
+        #print("Node to ref pos after: %s" % self._node_to_ref_pos_after)
+        #print("Node to ref pos before: %s" % self._node_to_ref_pos_before)
         #logging.info("Adding edges")
         i = 0
+        # we want an edge from the node to nodes that come after this node
+        # we find nodes coming after by looking at which ref position this node goes to
+        # then we find all nodes where the ref position before that ref pos goes to the node
         for from_node, ref_positions_after in self._node_to_ref_pos_after.items():
             if i % 500000 == 0:
                 logging.info("%d edge nodes processed" % i)
             i += 1
             for ref_pos_after in ref_positions_after:
                 # Find all nodes where the ref pos before ref_pos_after goes to the node
+                # ignore nodes with same ref pos before annd after as this node
+                # such nodes are parallel nodes to this node and we don't want to connect them
                 for to_node in self._ref_pos_to_node_after[ref_pos_after-1]:
                     if to_node == from_node:
                         continue
+                    if self._node_to_ref_pos_after[from_node] == self._node_to_ref_pos_after[to_node] \
+                            and self._node_to_ref_pos_before[from_node] == self._node_to_ref_pos_before[to_node]:
+                        #print("Skipping edge from %d to %d" % (from_node, to_node))
+                        continue
+                    #print("Adding edge from %d to %d" % (from_node, to_node))
                     self._make_edge(from_node, to_node, ref_pos_after-1)
 
 
