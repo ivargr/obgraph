@@ -68,6 +68,17 @@ class Graph:
         else:
             self.linear_ref_nodes_and_dummy_nodes_index = linear_ref_nodes_and_dummy_nodes_index
 
+
+    def __eq__(self, other):
+        t = np.all(self.nodes == other.nodes) and np.all(self.edges == other.edges) and np.all(self.sequences == other.sequences)
+        if self.chromosome_start_nodes is not None:
+            if other.chromosome_start_nodes is None:
+                return False
+
+            t &= np.all(self.chromosome_start_nodes == other.chromosome_start_nodes)
+
+        return t
+
     def node_has_edges(self, node, edges):
         e = self.get_edges(node)
         if len(edges) != len(e):
