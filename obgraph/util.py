@@ -5,6 +5,9 @@ import resource
 
 
 def encode_chromosome(chromosome):
+    if chromosome.startswith("chr"):
+        return encode_chromosome(chromosome.replace("chr", ""))
+
     if chromosome.upper() == "X":
         return 23
     elif chromosome.upper() == "Y":

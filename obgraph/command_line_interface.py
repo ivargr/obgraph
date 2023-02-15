@@ -17,7 +17,7 @@ from pyfaidx import Fasta
 from .graph_construction import GraphConstructor
 from .graph_merger import merge_graphs
 import numpy as np
-from shared_memory_wrapper.shared_memory import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session, to_file, from_file, get_shared_pool, close_shared_pool
+from shared_memory_wrapper import from_shared_memory, to_shared_memory, SingleSharedArray, remove_shared_memory_in_session, to_file, from_file, get_shared_pool, close_shared_pool
 from multiprocessing import Pool
 import time
 from itertools import repeat

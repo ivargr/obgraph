@@ -4,7 +4,7 @@ import logging
 from .graph import VariantNotFoundException, Graph
 import pickle
 from multiprocessing import Pool, Process
-from shared_memory_wrapper.shared_memory import object_to_shared_memory, object_from_shared_memory, get_shared_pool, close_shared_pool, from_file, to_file
+from shared_memory_wrapper import object_to_shared_memory, object_from_shared_memory, get_shared_pool, close_shared_pool, from_file, to_file
 from itertools import repeat
 from .traversing import traverse_graph_by_following_nodes
 import random

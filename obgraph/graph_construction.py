@@ -38,29 +38,18 @@ class GraphConstructor:
 
         self.make_nodes()
         self.make_edges()
-        #self._mutable_graph.linear_ref_nodes = self._reference_nodes
         self._graph = None
         self._graph_with_dummy_nodes = None
         logging.info("Making a graph")
         self._graph = self.get_graph()
-        self._graph.to_file("tmpgraph")
-        logging.info("Wrote a tmpgraph")
         logging.info("Adding dummy nodes for indels")
         self.add_dummy_nodes()
 
-
-
     def get_graph(self):
         return Graph.from_mutable_graph(self._mutable_graph)
-        """
-        return Graph.from_flat_nodes_and_edges(np.array(self._node_ids), np.array(self._node_sequences, dtype=object),
-                                               np.array(self._node_sizes), np.array(self._edges_from),
-                                               np.array(self._edges_to), np.array(self._reference_nodes), np.array([1]))
-        """
 
     def get_graph_with_dummy_nodes(self):
         return self._graph_with_dummy_nodes
-
 
     def add_dummy_nodes(self):
         dummy_node_adder = DummyNodeAdder(self._graph, self.variants)
