@@ -118,7 +118,7 @@ class VcfVariant:
         return "%s\t%d\t.\t%s\t%s\t.\t%s\t.\tGT\t%s\n"  % (chromosome, self.position, self.ref_sequence, self.variant_sequence, self._filter, self.genotype if self.genotype is not None else ".")
 
     def __str__(self):
-        return "chr%d:%d %s/%s %s %s" % (self.chromosome, self.position, self.ref_sequence, self.variant_sequence, self.genotype, self.type)
+        return "%s:%d %s/%s %s %s" % (self.chromosome, self.position, self.ref_sequence, self.variant_sequence, self.genotype, self.type)
 
     def length(self):
         if self.type == "SNP":
@@ -266,11 +266,12 @@ class VcfVariant:
             yield (individual_id, numeric)
 
     @classmethod
-    def from_vcf_line(cls, line, vcf_line_number=None):
+    def from_vcf_line(cls, line, vcf_line_number=None, dont_encode_chromosome=False):
         l = line.split()
-        chromosome = encode_chromosome(l[0])
+        chromosome = l[0]
+        if not dont_encode_chromosome:
+            chromosome = int(encode_chromosome(l[0]))
 
-        chromosome = int(chromosome)
         position = int(l[1])
         ref_sequence = l[3].lower().replace("n", "a")  # we only want actg
         variant_sequence = l[4].lower().replace("n", "a")
