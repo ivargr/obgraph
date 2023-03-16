@@ -51,6 +51,11 @@ class PhasedGenotypeMatrix:
 
         logging.info("Read data. Time spent: %.3f sec " % (time.perf_counter() - t0))
 
+        # replace "." (unknown genotype)
+        is_unknown = data == 46
+        logging.info("Number of unknown genotypes (these will be replaced by reference): %d/%d" % (np.sum(is_unknown), len(data)))
+        data[is_unknown] = 48
+
         assert np.max(data) <= 49, "There are values larger than 49 (1) in data. Invalid VCF txt format " + str(np.where(data > 49))
         assert np.min(data) >= 48, "There are values lower than 48 (0) in data (%d). Invalid VCF txt format %s"  % (np.min(data), str(np.where(data < 48)))
 
@@ -331,7 +336,6 @@ class GenotypeMatrix:
             n_individuals = variants.n_individuals()
 
         matrix = np.zeros((n_individuals, n_variants), dtype=np.uint8) + 4  # 4 is unknown genotype
-        print(matrix)
         matrix = cls(matrix)
         logging.info("Putting genotype matrix in shared memory")
         to_shared_memory(matrix, "genotype_matrix"+shared_memory_unique_id)

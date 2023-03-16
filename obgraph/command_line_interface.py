@@ -105,8 +105,8 @@ def add_indel_nodes(args):
 def add_allele_frequencies(args):
     logging.info("Reading graph")
     graph = Graph.from_file(args.graph_file_name)
-    variants = VcfVariants.from_vcf(args.vcf_file_name, limit_to_chromosome=args.chromosome, skip_index=True)
-    graph.set_allele_frequencies_from_variants(variants, use_chromosome=args.chromosome)  # Use chromosome 1 because we always assume this is a single-chromosome graph
+    variants = VcfVariants.from_vcf(args.vcf_file_name, limit_to_chromosome=args.chromosome, skip_index=True, dont_encode_chromosomes=True)
+    graph.set_allele_frequencies_from_variants(variants, use_chromosome=args.chromosome)
     graph.to_file(args.graph_file_name)
     logging.info("Wrote modified graph to the same file %s" % args.graph_file_name)
 
@@ -223,7 +223,7 @@ def run_argument_parser(args):
             from .util import get_number_of_variants_and_individuals_from_vcf
             n_variants, n_individuals = get_number_of_variants_and_individuals_from_vcf(args.vcf_file_name)
 
-        variants = VcfVariants.from_vcf(args.vcf_file_name, skip_index=True, limit_to_n_lines=None, make_generator=True)
+        variants = VcfVariants.from_vcf(args.vcf_file_name, skip_index=True, limit_to_n_lines=None, make_generator=True, dont_encode_chromosomes=True)
 
         if args.node_to_haplotypes is not None:
             graph = Graph.from_file(args.graph)
@@ -392,7 +392,7 @@ def run_argument_parser(args):
     def make_variant_to_nodes(args):
         from .variant_to_nodes import VariantToNodes
         graph = Graph.from_file(args.graph)
-        variants = VcfVariants.from_vcf(args.vcf, skip_index=True)
+        variants = VcfVariants.from_vcf(args.vcf, skip_index=True, dont_encode_chromosomes=True)
         variant_to_nodes = VariantToNodes.from_graph_and_variants(graph, variants)
         variant_to_nodes.to_file(args.out_file_name)
         logging.info("Wrote to file %s" % args.out_file_name)

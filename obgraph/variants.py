@@ -229,7 +229,7 @@ class VcfVariant:
             numeric = 2
         elif genotype_string == "0|1" or genotype_string == "1|0":
             numeric = 1
-        elif genotype_string == ".":
+        elif genotype_string in [".", ".|.", "./."]:
             numberic = 4
         else:
             logging.error("Could not parse genotype string %s" % genotype_string)
@@ -266,10 +266,11 @@ class VcfVariant:
             yield (individual_id, numeric)
 
     @classmethod
-    def from_vcf_line(cls, line, vcf_line_number=None, dont_encode_chromosome=False):
+    def from_vcf_line(cls, line, vcf_line_number=None, dont_encode_chromosome=True):
         l = line.split()
         chromosome = l[0]
         if not dont_encode_chromosome:
+            assert False, "Encoding chromosome is not possible anymore"
             chromosome = int(encode_chromosome(l[0]))
 
         position = int(l[1])
@@ -426,7 +427,7 @@ class VcfVariants:
         return False
 
     def get_variants_in_region(self, chromosome, start, end):
-        chromosome = int(chromosome)
+        #chromosome = int(chromosome)
         if chromosome not in self._variants_by_chromosome:
             #logging.info("Invalid chromosome %s of type %s. Possible chromosomes are %s" % (chromosome, type(chromosome), self._variants_by_chromosome.keys()))
             return []
@@ -548,10 +549,10 @@ class VcfVariants:
             logging.info("Returning variant generator")
             if is_bgzipped:
                 f = (line for line in f if not line.decode("utf-8").startswith("#"))
-                return cls((VcfVariant.from_vcf_line(line.decode("utf-8"), vcf_line_number=i) for i, line in enumerate(f) if not line.decode("utf-8").startswith("#")), skip_index=skip_index, header_lines=header_lines, dont_encode_chromosome=dont_encode_chromosomes)
+                return cls((VcfVariant.from_vcf_line(line.decode("utf-8"), vcf_line_number=i, dont_encode_chromosome=dont_encode_chromosomes) for i, line in enumerate(f) if not line.decode("utf-8").startswith("#")), skip_index=skip_index, header_lines=header_lines)
             else:
                 f = (line for line in f if not line.startswith("#"))
-                return cls((VcfVariant.from_vcf_line(line, vcf_line_number=i) for i, line in enumerate(f)), skip_index=skip_index, header_lines=header_lines, dont_encode_chromosome=dont_encode_chromosomes)
+                return cls((VcfVariant.from_vcf_line(line, vcf_line_number=i, dont_encode_chromosome=dont_encode_chromosomes) for i, line in enumerate(f)), skip_index=skip_index, header_lines=header_lines)
 
         n_variants_added = 0
         prev_time = time.time()

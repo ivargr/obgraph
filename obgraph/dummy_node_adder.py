@@ -63,6 +63,7 @@ class DummyNodeAdder:
 
         #logging.info("===========")
         #logging.info("Variant %s. Inserted nodes: %s" % (variant, possible_inserted_node_paths))
+        assert len(possible_inserted_node_paths) < 10, f"Suspiciously many inserted node paths for variant {variant}"
 
         did_add = False
 
@@ -81,7 +82,8 @@ class DummyNodeAdder:
                         # If deletion, the last position in the last node on the path must be on the linear reference and match the length of the deleted sequence
                         deletion_end_pos = variant.position + len(inserted_sequence)
                         if deletion_end_pos != self.graph.get_chromosome_ref_offset_at_node(variant.chromosome, possible_path[-1]) + self.graph.get_node_size(possible_path[-1]):
-                            logging.info("Ignoring deletion path %s because ref pos at end is not correct" % possible_path)
+                            logging.debug("Ignoring deletion path %s because ref pos at end is not correct" % possible_path)
+                            logging.debug(f"Deletion ends at position {deletion_end_pos}. Variant: {variant}")
                             continue
 
                     correct_paths.append(possible_path)
@@ -110,10 +112,7 @@ class DummyNodeAdder:
                 #logging.warning("Variant is %s" % variant)
                 continue
 
-            if 178112 in inserted_nodes:
-                logging.info("Adding bypass edges: %s" % bypass_edges)
-                logging.info("Inserted node paths are %s" % possible_inserted_node_paths)
-
+            #logging.info("Adding bypass edges: " + str(bypass_edges))
             self._add_new_dummy_node_for_edges(bypass_edges)
             did_add = True
 

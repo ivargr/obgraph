@@ -211,3 +211,61 @@ def test_full_create_with_two_insertions_at_same_position():
     assert set(graph.edges[6]) == set([4])
 
 
+def test_two_overlapping_snps():
+    variants = VcfVariants(
+        [
+            VcfVariant(1, 3, "A", "G", type="SNP"),
+            VcfVariant(1, 3, "A", "T", type="SNP"),
+        ]
+    )
+
+    ref_sequence = "CCACCC"
+    constructor = GraphConstructor(ref_sequence, variants)
+    without_dummy = constructor._graph.to_mutable_graph()
+    print(without_dummy)
+    print(without_dummy.nodes)
+
+    graph = constructor.get_graph_with_dummy_nodes()
+
+    correct = Graph.from_dicts({
+            1: "CC",
+            2: "G",
+            3: "T",
+            4: "A",
+            5: "CCC"
+        },
+        {
+            1: [2, 3, 4],
+            2: [5],
+            3: [5],
+            4: [5]
+        },
+        [1, 4, 5])
+
+    assert correct == graph
+
+
+def test_two_overlapping_snps_and_indel():
+    variants = VcfVariants(
+        [
+            VcfVariant(1, 3, "A", "G", type="SNP"),
+            VcfVariant(1, 3, "A", "T", type="SNP"),
+            VcfVariant(1, 3, "A", "GCT", type="INSERTION")
+        ]
+    )
+
+    ref_sequence = "CCACCC"
+    constructor = GraphConstructor(ref_sequence, variants)
+    without_dummy = constructor._graph.to_mutable_graph()
+    print(without_dummy)
+    print(without_dummy.nodes)
+
+    graph = constructor.get_graph_with_dummy_nodes()
+
+    print(graph.to_mutable_graph())
+    assert graph.get_node_sequence(8) == ""
+    print("Sequence: ", graph.get_node_sequence(8))
+    assert graph.get_edges(8) == [6]
+    assert all(graph.get_edges(4) == [5, 8])
+    assert graph.get_node_sequence(5) == "CT"
+    print(graph.get_edges(8))

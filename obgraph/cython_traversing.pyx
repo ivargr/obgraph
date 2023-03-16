@@ -41,7 +41,7 @@ def traverse_graph_by_following_nodes(graph, np.uint8_t[:] follow_nodes, split_i
     #print(type(current_node))
     chromosome_index_positions = []
 
-    for current_node in graph.chromosome_start_nodes:
+    for current_node in graph.chromosome_start_nodes.values():
         if split_into_chromosomes:
             chromosome_index_positions.append(node_index)
 

@@ -202,7 +202,6 @@ class Graph:
     def get_node_at_chromosome_and_chromosome_offset(self, chromosome, offset):
         #chromosome_position = chromosome - 1
         try:
-            print(self.chromosome_start_nodes)
             chromosome_start_node = self.chromosome_start_nodes[chromosome]
         except IndexError:
             if len(self.chromosome_start_nodes) == 1:
@@ -436,7 +435,6 @@ class Graph:
         #to_nodes = to_nodes[sorting]
 
         edges = RaggedArray(to_nodes, n_edges, dtype=np.uint32)
-        print(edges)
 
         """
         logging.info("Making node index")
@@ -724,6 +722,7 @@ class Graph:
         if len(dummy_nodes) != 1:
             logging.error("Edges from %d are %s" % (node, self.get_edges(node)))
             logging.error("Error when parsing insertion %s. There are not exactly 1 insertion node between %d and %d. Nodes of length 0 between are %s" % (variant, node, next_ref_node, dummy_nodes))
+            logging.error(f"Node sizes from {node} are " + str([self.get_node_size(n) for n in self.get_edges(node)]))
             raise Exception("")
 
         insertion_node = dummy_nodes[0]
@@ -748,7 +747,7 @@ class Graph:
 
         for i, variant in enumerate(variants):
             if use_chromosome is not None:
-                variant.chromosome = encode_chromosome(use_chromosome)
+                variant.chromosome = use_chromosome
 
             if i % 1000000 == 0:
                 logging.info("%d variants processed" % i)
@@ -849,8 +848,8 @@ class Graph:
 
     def convert_chromosome_ref_offset_to_graph_ref_offset(self, chromosome_offset, chromosome):
         # Add the graph ref offset at this chromosome to the chromosome offset
-        chromosome_position = chromosome - 1
-        return int(self.node_to_ref_offset[self.chromosome_start_nodes[chromosome_position]] + chromosome_offset)
+        #chromosome_position = chromosome - 1
+        return int(self.node_to_ref_offset[self.chromosome_start_nodes[chromosome]] + chromosome_offset)
 
 
     def find_nodes_from_node_that_matches_sequence(self, from_node, sequence, nodes_found, all_paths_found):

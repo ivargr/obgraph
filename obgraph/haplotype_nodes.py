@@ -316,7 +316,6 @@ class HaplotypeToNodes:
         logging.info("Making index")
         diffs = np.ediff1d(haplotypes, to_begin=1)
         unique_entry_positions = np.nonzero(diffs)[0]
-        print(unique_entry_positions)
         unique_haplotypes = haplotypes[unique_entry_positions]
 
         lookup_size = int(np.max(haplotypes)) + 1
