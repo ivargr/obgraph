@@ -15,16 +15,14 @@ def test_find_insertion_nodes():
             4: [3]
 
         },
-        [1, 3]
+        [1, 3],
+        chromosome_start_nodes={1: 1}
     )
     variant = VcfVariant(1, 6, "A", "AAA", "", "INSERTION")
-
-
     ref_node, variant_node = g.get_variant_nodes(variant)
     assert ref_node == 4
     assert variant_node == 2
 
-test_find_insertion_nodes()
 
 def test_position_index():
     variants = VcfVariants(
@@ -44,5 +42,3 @@ def test_position_index():
     v = variants.get_variants_in_region(1, 4, 8)
     print(v)
 
-
-test_position_index()

@@ -34,8 +34,6 @@ class GraphConstructor:
         self._edges_added = set()
 
         self._mutable_graph = MutableGraph()
-
-
         self.make_nodes()
         self.make_edges()
         self._graph = None
@@ -80,14 +78,6 @@ class GraphConstructor:
             logging.error("Ref pos before node: %d" % ref_position_before_node)
             raise EmptyNodeException("Empty sequence for node")
 
-        #size = len(sequence)
-        #self._node_ids.append(self._current_node_id)
-        #self._node_sequences.append(np.array(list(sequence)))
-        #self._node_sizes.append(size)
-
-        #if is_ref_node and len(sequence) > 0:  # We never want empty dummy nodes as reference node (by definition)
-        #    self._reference_nodes.append(self._current_node_id)
-
         self._ref_pos_to_node_after[ref_position_before_node].append(self._current_node_id)
         self._ref_pos_to_node_start[ref_position_before_node+1].append(self._current_node_id)
         #logging.info("         Addding node %d to ref_pos_to_node_after for ref pos %d" % (self._current_node_id, ref_position_before_node))
@@ -104,8 +94,12 @@ class GraphConstructor:
         logging.info("Making nodes")
         prev_ref_node_end = -1
 
+        self._mutable_graph.chromosome_start_nodes = {}
+
         i = 0
         for breakpoint_position, variant in self.breakpoints:
+
+
             i += 1
 
             if i % 100000 == 0:
@@ -125,6 +119,7 @@ class GraphConstructor:
 
                     prev_ref_node_id = self._make_node(prev_ref_node_end, breakpoint_position+1,
                                                        sequence_between_breakpoints, is_ref_node=True)
+
                 except EmptyNodeException:
                     logging.error("Tried making a node between pos %d and %d" % (prev_ref_node_end, breakpoint_position+1))
                     logging.info("Variant is %s" % variant)
@@ -135,6 +130,11 @@ class GraphConstructor:
 
             # If breakpoint is a new variant, make a variant node
             if variant is not None:
+                if variant.chromosome not in self._mutable_graph.chromosome_start_nodes:
+                    self._mutable_graph.chromosome_start_nodes[variant.chromosome] = prev_ref_node_id
+                    logging.info(
+                        f"Setting chromosome start node of chromosome {variant.chromosome} to be {prev_ref_node_id}")
+
                 if variant.type != "DELETION":
                     #logging.info("   Making a variant node %d. Pos before/after: %d/%d. Variant node sequence: %s" % (
                     #self._current_node_id, variant.get_reference_position_before_variant(),

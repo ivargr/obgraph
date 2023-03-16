@@ -152,10 +152,10 @@ def fill_zeros_with_last(arr, initial=0):
     return np.where(cnt, arr[ind[cnt-1]], initial)
 
 
-def create_coordinate_map(path_nodes, graph, chromosome_index=0):
+def create_coordinate_map(path_nodes, graph, chromosome_index):
     path_node_sizes = graph.nodes[path_nodes]
     path_offsets = np.concatenate([[0], np.cumsum(path_node_sizes)[:-1]]).astype(int)
-    linear_ref_offsets = graph.node_to_ref_offset[path_nodes] - graph.get_ref_offset_at_node(graph.chromosome_start_nodes[chromosome_index])
+    linear_ref_offsets = graph.node_to_ref_offset[path_nodes] - graph.get_ref_offset_at_node(list(graph.chromosome_start_nodes.values())[chromosome_index])
 
     print(path_offsets)
     print(linear_ref_offsets)

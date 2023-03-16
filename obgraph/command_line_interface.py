@@ -25,7 +25,7 @@ from .util import create_coordinate_map
 from .util import fill_zeros_with_last
 from .variant_to_nodes import VariantToNodes
 from npstructures import RaggedArray
-
+import bionumpy as bnp
 
 
 
@@ -37,22 +37,48 @@ def merge_graphs_command(args):
     merged_graph.to_file(args.out_file_name)
 
 
+def _assert_vcf_and_fasta_are_compatible(fasta_file_name, vcf_file_name):
+    logging.info(f"Checking that fasta {fasta_file_name} and vcf {vcf_file_name} are compatible")
+    genome = bnp.Genome.from_file(fasta_file_name)
+    chromosomes = genome.get_genome_context().chrom_sizes.keys()
+
+    for chunk in bnp.open(vcf_file_name).read_chunks():
+        unique_chromosomes = set([c.chromosome.to_string() for c in chunk])
+        assert all(c in chromosomes for c in unique_chromosomes), \
+            "VCF contains chromosomes %s. Some chromosomes are not in fasta which contains chromosomes %s" % (unique_chromosomes, chromosomes)
+
+
+def _assert_chromosome_is_in_reference(fasta_file_name, chromosome):
+    genome = bnp.Genome.from_file(fasta_file_name)
+    chromosomes = genome.get_genome_context().chrom_sizes.keys()
+    assert chromosome in chromosomes, f"Chromosome {chromosome} is not valid, does not exist in fasta file {fasta_file_name} which contains chromosomes {chromosomes}"
+
+
 def make(args):
     if args.vcf is not None:
+        if args.chromosome is not None:
+            _assert_chromosome_is_in_reference(args.reference_fasta_file, args.chromosome)
+        else:
+            _assert_vcf_and_fasta_are_compatible(args.reference_fasta_file, args.vcf)
+
         logging.info("Will create from vcf file")
         reference = Fasta(args.reference_fasta_file)
 
         chromosome = args.chromosome
+        """
         numeric_chromosome = chromosome
+        
         if chromosome == "X":
             numeric_chromosome = "23"
         elif chromosome == "Y":
             numeric_chromosome = "24"
+        """
 
         ref_sequence = str(reference[args.chromosome])
         logging.info("Extracted sequence for chromosome %s. Length is: %d" % (chromosome, len(ref_sequence)))
-        variants = VcfVariants.from_vcf(args.vcf, limit_to_chromosome=numeric_chromosome)
+        variants = VcfVariants.from_vcf(args.vcf, limit_to_chromosome=chromosome, dont_encode_chromosomes=True)
         logging.info("There are %d variants in chromosome" % len(variants))
+        assert len(variants) > 0, "Did not find any variants in VCF when limiting to chromosome %s" % chromosome
 
         constructor = GraphConstructor(ref_sequence, variants)
         graph = constructor.get_graph_with_dummy_nodes()

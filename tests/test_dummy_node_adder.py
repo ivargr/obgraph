@@ -175,6 +175,7 @@ def test_insertion_with_identical_false_path():
     )
     dummy_node_adder = DummyNodeAdder(graph, variants)
     new_graph = dummy_node_adder.create_new_graph_with_dummy_nodes()
+
     print(new_graph)
 
     assert list(new_graph.get_edges(1)) == [2, 6]

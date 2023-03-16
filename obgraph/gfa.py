@@ -69,18 +69,18 @@ def create_graph_from_gfa_file(file_name):
 
     # find reference node from path
     linear_ref_nodes = []
-    chromosome_start_nodes = []
+    chromosome_start_nodes = {}
     for path_line in path_lines:
         path_name = path_line[1]
         logging.info("Processing path %s" % path_name)
         nodes = path_line[2].split(",")
         nodes = [int(node.replace("+", "")) for node in nodes]
-        chromosome_start_nodes.append(nodes[0])
+        chromosome_start_nodes[path_name] = nodes[0]
         linear_ref_nodes.extend(nodes)
         logging.info("There are %d linear ref nodes in path %s"  % (len(nodes), path_name))
 
     graph.set_linear_ref_nodes(linear_ref_nodes)
-    graph.chromosome_start_nodes = np.array(chromosome_start_nodes)
+    graph.chromosome_start_nodes = chromosome_start_nodes
 
     logging.info("Chromosome start nodes: %s" % graph.chromosome_start_nodes)
     return Graph.from_mutable_graph(graph)

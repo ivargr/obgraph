@@ -516,15 +516,17 @@ class VcfVariants:
         return header_lines
 
     @classmethod
-    def from_vcf(cls, vcf_file_name, skip_index=False, limit_to_n_lines=None, make_generator=False, limit_to_chromosome=None):
+    def from_vcf(cls, vcf_file_name, skip_index=False, limit_to_n_lines=None, make_generator=False, limit_to_chromosome=None, dont_encode_chromosomes=False):
         logging.info("Reading variants from file")
         variant_genotypes = []
 
+        """
         if limit_to_chromosome is not None:
             if limit_to_chromosome == "X":
                 limit_to_chromosome = "23"
             elif limit_to_chromosome == "Y":
                 limit_to_chromosome = "24"
+        """
 
         if limit_to_chromosome is not None:
             logging.info("Will only read variants from chromsome %s" % limit_to_chromosome)
@@ -546,10 +548,10 @@ class VcfVariants:
             logging.info("Returning variant generator")
             if is_bgzipped:
                 f = (line for line in f if not line.decode("utf-8").startswith("#"))
-                return cls((VcfVariant.from_vcf_line(line.decode("utf-8"), vcf_line_number=i) for i, line in enumerate(f) if not line.decode("utf-8").startswith("#")), skip_index=skip_index, header_lines=header_lines)
+                return cls((VcfVariant.from_vcf_line(line.decode("utf-8"), vcf_line_number=i) for i, line in enumerate(f) if not line.decode("utf-8").startswith("#")), skip_index=skip_index, header_lines=header_lines, dont_encode_chromosome=dont_encode_chromosomes)
             else:
                 f = (line for line in f if not line.startswith("#"))
-                return cls((VcfVariant.from_vcf_line(line, vcf_line_number=i) for i, line in enumerate(f)), skip_index=skip_index, header_lines=header_lines)
+                return cls((VcfVariant.from_vcf_line(line, vcf_line_number=i) for i, line in enumerate(f)), skip_index=skip_index, header_lines=header_lines, dont_encode_chromosome=dont_encode_chromosomes)
 
         n_variants_added = 0
         prev_time = time.time()
@@ -572,8 +574,8 @@ class VcfVariants:
                 break
 
 
-            variant = VcfVariant.from_vcf_line(line, vcf_line_number=variant_number)
-            if limit_to_chromosome is not None and variant.chromosome != int(limit_to_chromosome):
+            variant = VcfVariant.from_vcf_line(line, vcf_line_number=variant_number, dont_encode_chromosome=dont_encode_chromosomes)
+            if limit_to_chromosome is not None and variant.chromosome != limit_to_chromosome:
                 if len(variant_genotypes) > 0:
                     logging.info("Stoppinng reading file since limiting to chromosome and now on new chromosome")
                     break

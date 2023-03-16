@@ -42,6 +42,7 @@ class Graph:
                  edges: RaggedArray,
                  node_to_ref_offset=None, ref_offset_to_node=None, chromosome_start_nodes=None, allele_frequencies=None, linear_ref_nodes_index=None,
                  numeric_node_sequences=None, linear_ref_nodes_and_dummy_nodes_index=None):
+        assert chromosome_start_nodes is None or isinstance(chromosome_start_nodes, dict), "Chromosome start nodes must be None or a dict from chromosome to start node"
         self.nodes = nodes
         self.edges = edges
         self.sequences = sequences
@@ -94,7 +95,7 @@ class Graph:
         raise Exception("Unsupported")
 
     def get_all_nodes(self):
-        node_to_n_edges = self.edges.shape.lengths   # a bit hacky, accessing length of RaggedShape in npstructures
+        node_to_n_edges = self.edges.shape[0]
         return np.union1d(np.where(self.nodes != 0)[0], np.where(node_to_n_edges > 0)[0])
         # This does not return nodes of size 0
         #return np.where(self.nodes != 0)[0]
@@ -158,11 +159,11 @@ class Graph:
 
 
     def get_numeric_node_sequences_by_chromosomes(self, nodes):
-        assert nodes[0] == self.chromosome_start_nodes[0], "First node must be first chromosome node"
+        assert nodes[0] == list(self.chromosome_start_nodes.values())[0], "First node must be first chromosome node"
 
         # yields one sequence per chromosome, assumes the nodes are sorted so that
         # nodes on same chromosome are together
-        split_positions = list(np.where(np.in1d(nodes, self.chromosome_start_nodes))[0])
+        split_positions = list(np.where(np.in1d(nodes, list(self.chromosome_start_nodes.values())))[0])
         #split_positions = list(np.searchsorted(nodes, self.chromosome_start_nodes))
         split_positions.append(nodes[-1])
 
@@ -186,11 +187,11 @@ class Graph:
         return ''.join(sequences)
 
     def get_node_offset_at_chromosome_and_chromosome_offset(self, chromosome, offset):
-        chromosome_position = chromosome - 1
+        #chromosome_position = chromosome - 1
         try:
-            chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+            chromosome_start_node = self.chromosome_start_nodes[chromosome]
         except IndexError:
-            chromosome_start_node = self.chromosome_start_nodes[0]
+            chromosome_start_node = list(self.chromosome_start_nodes.values())[0]
 
         chromosome_offset = self.get_ref_offset_at_node(chromosome_start_node)
         real_offset = int(chromosome_offset + offset)
@@ -199,9 +200,10 @@ class Graph:
         return real_offset - node_offset
 
     def get_node_at_chromosome_and_chromosome_offset(self, chromosome, offset):
-        chromosome_position = chromosome - 1
+        #chromosome_position = chromosome - 1
         try:
-            chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+            print(self.chromosome_start_nodes)
+            chromosome_start_node = self.chromosome_start_nodes[chromosome]
         except IndexError:
             if len(self.chromosome_start_nodes) == 1:
                 #logging.info("Assuming chromosome start node is the only start node %d" % self.chromosome_start_nodes[0])
@@ -294,12 +296,11 @@ class Graph:
         return self.node_to_ref_offset[node]
 
     def get_chromosome_ref_offset_at_node(self, chromosome, node):
-        chromosome_position = chromosome - 1
         try:
-            chromosome_start_node = self.chromosome_start_nodes[chromosome_position]
+            chromosome_start_node = self.chromosome_start_nodes[chromosome]
         except IndexError:
             if len(self.chromosome_start_nodes) == 1:
-                chromosome_start_node = self.chromosome_start_nodes[0]
+                chromosome_start_node = list(self.chromosome_start_nodes.values())[0]
             else:
                 logging.error(
                 "Could not find chromosome start position for chromosome %d. Chromosome start nodes are %s" % (
@@ -396,7 +397,8 @@ class Graph:
 
         if chromosome_start_nodes is None:
             chromosome_start_nodes = [node for node in node_ids if node not in to_nodes_set]
-            logging.info("Found chromosome start nodes to be %s" % chromosome_start_nodes)
+            chromosome_start_nodes = {i+1: node for i, node in enumerate(chromosome_start_nodes)}
+            logging.info("Seting chromosome start nodes to be %s" % chromosome_start_nodes)
         else:
             logging.info("Chromosome start nodes already set to %s" % chromosome_start_nodes)
 

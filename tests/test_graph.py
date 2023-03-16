@@ -36,7 +36,7 @@ def test_from_dicts():
     assert g.get_ref_offset_at_node(4) == 5
     assert g.get_ref_offset_at_node(2) == 4
 
-    assert list(g.chromosome_start_nodes) == [1]
+    assert list(g.chromosome_start_nodes.values()) == [1]
 
 
 def test_sparse_graph():
@@ -57,7 +57,7 @@ def test2():
         [0, 3]
     )
 
-    assert list(g.chromosome_start_nodes) == [0]
+    assert list(g.chromosome_start_nodes.values()) == [0]
 
     assert set(g.get_edges(0)) == set([1, 2])
 
@@ -69,7 +69,7 @@ def test_get_numeric_node_sequences_by_chromosome():
         },
         {1: [2], 2: [1000], 1000: [20], 20: [23], 23: [50], 50: [51]},
         [1, 2, 1000, 20, 23, 50, 51],
-        chromosome_start_nodes=[1, 20, 50]
+        chromosome_start_nodes={"chromosomeI": 1, "chromosomeIV": 20, "chromosomeX": 50}
     )
 
     sequences = list(g.get_numeric_node_sequences_by_chromosomes([1, 2, 1000, 20, 23, 50, 51]))
@@ -79,7 +79,3 @@ def test_get_numeric_node_sequences_by_chromosome():
     assert np.all(sequences[2] == [0, 0, 0, 2])
 
 
-
-test_from_dicts()
-test_sparse_graph()
-test2()

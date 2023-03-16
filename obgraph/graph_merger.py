@@ -11,7 +11,7 @@ def merge_graphs(graphs):
     new_edges = []
     new_node_to_ref_offset = []
     new_ref_offset_to_node = []
-    new_chromosome_start_nodes = []
+    new_chromosome_start_nodes = {}
     new_allele_frequencies = []
 
     node_offset = 0
@@ -35,7 +35,10 @@ def merge_graphs(graphs):
         new_node_to_ref_offset.append(graph.node_to_ref_offset+ref_offset)
         new_ref_offset_to_node.append(graph.ref_offset_to_node+node_offset)
 
-        new_chromosome_start_nodes.append(graph.get_first_node() + node_offset)
+        assert len(graph.chromosome_start_nodes) == 1, "Can only merge graphs representing single chromosomes"
+        chromosome = list(graph.chromosome_start_nodes.keys())[0]
+        new_chromosome_start_nodes[chromosome] = graph.get_first_node() + node_offset
+        #new_chromosome_start_nodes.append(graph.get_first_node() + node_offset)
 
         if graph.allele_frequencies is not None:
             new_allele_frequencies.append(graph.allele_frequencies)
@@ -56,7 +59,7 @@ def merge_graphs(graphs):
     new_edges = np.concatenate(new_edges)
     new_node_to_ref_offset = np.concatenate(new_node_to_ref_offset)
     new_ref_offset_to_node = np.concatenate(new_ref_offset_to_node)
-    new_chromosome_start_nodes = np.array(new_chromosome_start_nodes)
+
     if len(new_allele_frequencies) > 0:
         new_allele_frequencies = np.concatenate(new_allele_frequencies)
     else:
