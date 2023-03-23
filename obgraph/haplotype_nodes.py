@@ -88,7 +88,6 @@ class DiscBackedHaplotypeToNodes:
     def __getitem__(self, item):
         return self.data[item]
 
-
     @classmethod
     def from_file(cls, file_name):
         #return from_file(file_name)

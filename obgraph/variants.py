@@ -193,6 +193,7 @@ class VcfVariant:
         # genotypes are 1, 2, 3 for homo ref, homo alt and hetero
         for individual_id, genotype_string in enumerate(self.vcf_line.split()[9:]):
             genotype_string = genotype_string.split(":")[0].replace("/", "|")
+            genotype_string = genotype_string.replace(".", "0")
             if genotype_string == "0|0":
                 numeric = (1, 1)
             elif genotype_string == "1|1":
@@ -202,8 +203,7 @@ class VcfVariant:
             elif genotype_string == "1|0":
                 numeric = (2, 1)
             else:
-                logging.error("Could not parse genotype string %s" % genotype_string)
-                raise Exception("Unknown genotype")
+                raise Exception("Could not parse genotype string %s" % genotype_string)
 
             yield (individual_id, numeric)
 
@@ -229,11 +229,10 @@ class VcfVariant:
             numeric = 2
         elif genotype_string == "0|1" or genotype_string == "1|0":
             numeric = 1
-        elif genotype_string in [".", ".|.", "./."]:
+        elif "." in genotype_string:  # in [".", ".|.", "./.", ".|0", "0"]:
             numberic = 4
         else:
-            logging.error("Could not parse genotype string %s" % genotype_string)
-            raise Exception("Unknown genotype")
+            raise Exception("Could not parse genotype string %s" % genotype_string)
 
         return numeric
 
