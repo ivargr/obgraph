@@ -826,8 +826,20 @@ class Graph:
             nodes[haplotype, i] = current_node
 
         return nodes
-
+   
     def get_reverse_edges_hashtable(self):
+
+        class HashTableWrapper:
+            def __init__(self, hashtable):
+                self.hashtable = hashtable
+
+            def __getitem__(self, item):
+                try:
+                    return self.hashtable[[item]]
+                except IndexError:
+                    return np.array([])
+
+
         from_nodes = NpList(dtype=np.uint32)
         to_nodes = NpList(dtype=np.uint32)
 
@@ -836,7 +848,8 @@ class Graph:
                 from_nodes.append(edge)
                 to_nodes.append(node)
 
-        return HashTable(from_nodes.get_nparray(), to_nodes.get_nparray())
+        return HashTableWrapper(HashTable(from_nodes.get_nparray(), to_nodes.get_nparray()))
+
 
     def get_reverse_edges_dict(self):
         reverse_edges = defaultdict(list)

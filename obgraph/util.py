@@ -1,7 +1,13 @@
 import numpy as np
 import logging
-from .cython_traversing import fill_zeros_increasingly
 import resource
+
+
+def fill_zeros_increasingly(arr):
+    prev = np.arange(len(arr))
+    prev[arr == 0] = 0
+    prev = np.maximum.accumulate(prev)
+    return arr[prev]
 
 
 def encode_chromosome(chromosome):
@@ -163,8 +169,7 @@ def create_coordinate_map(path_nodes, graph, chromosome_index):
     # lookup is from path_offsets to linear_ref_offsets
     lookup = np.zeros(int(path_offsets[-1])+1, dtype=np.int64)
     lookup[path_offsets] = linear_ref_offsets
-    print(lookup)
-    fill_zeros_increasingly(lookup)
+    lookup = fill_zeros_increasingly(lookup)
 
     """
     # should fill zeros with 1 more than last, if not large nodes will not give accurate mapping
